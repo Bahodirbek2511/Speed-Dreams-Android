@@ -56,11 +56,25 @@ target_link_libraries(sdvr PRIVATE
 """)
         self._write(self.reference / "android/app/build.gradle", """plugins { id 'com.android.application' }
 android {
+    namespace 'com.speeddreamsvr'
     defaultConfig {
+        applicationId 'com.speeddreamsvr'
+        minSdk 29
+        targetSdk 32
+        versionCode 6
+        versionName '0.10.0-beta'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_shared', '-DANDROID_PLATFORM=android-29'
             }
+        }
+    }
+    signingConfigs {
+        debug {
+            keyPassword 'android'
         }
     }
 }
@@ -148,9 +162,16 @@ public class SDVRLib {
         gradle = (self.reference / "android/app/build.gradle").read_text()
         self.assertIn("-DSD_PHONE=ON", gradle)
         self.assertNotIn("openxr_loader_for_android", gradle)
+        self.assertIn("applicationId 'com.speeddreams.mobile'", gradle)
+        self.assertIn("versionCode 7", gradle)
+        self.assertIn("versionName '0.10.0-phone1'", gradle)
+        self.assertIn("abiFilters 'arm64-v8a', 'armeabi-v7a'", gradle)
+        self.assertIn("v1SigningEnabled true", gradle)
+        self.assertIn("v2SigningEnabled true", gradle)
         manifest = (self.reference / "android/app/src/main/AndroidManifest.xml").read_text()
         self.assertNotIn("android.hardware.vr.headtracking", manifest)
         self.assertNotIn("IMMERSIVE_HMD", manifest)
+        self.assertIn('android:glEsVersion="0x00020000"', manifest)
         activity = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java").read_text()
         self.assertIn("SDVRLib.onTouch(handle", activity)
         self.assertIn("import android.os.Build;", activity)
