@@ -196,6 +196,26 @@ done
 python3 "$ROOT/phone-port/tools/apply_phone_port.py" \
     --reference-root "$VR" --engine-root "$ENGINE"
 
+# The Redmi A1+ uses a 32-bit Android userspace, so build the native libraries
+# for armeabi-v7a rather than the upstream VR project's arm64-v8a default.
+python3 - "$VR/android/app/build.gradle" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+text = p.read_text(encoding="utf-8")
+old = "abiFilters 'arm64-v8a'"
+new = "abiFilters 'armeabi-v7a'"
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("Could not replace the expected single Android ABI filter")
+    text = text.replace(old, new, 1)
+if text.count(new) != 1 or old in text:
+    raise SystemExit("Android ABI filter did not resolve to armeabi-v7a only")
+p.write_text(text, encoding="utf-8", newline="\n")
+print("Configured Android native build for Redmi A1+ ABI: armeabi-v7a")
+PY
+
 # SpeedDreams-VR builds engine sources through cmake/sd.cmake rather than the
 # upstream engine's own CMakeLists. Declare utf8proc in the active VR project and
 # link it directly into libsdvr.so so drivers.cpp's utf8proc symbols are resolved.

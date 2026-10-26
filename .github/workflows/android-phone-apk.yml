@@ -1,4 +1,4 @@
-name: Build Speed Dreams phone APK (ARM64)
+name: Build Speed Dreams phone APK (Redmi A1+ ARMv7)
 
 on:
   workflow_dispatch:
@@ -75,31 +75,31 @@ jobs:
           APK="$VR/android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           mkdir -p dist
-          cp "$APK" dist/Speed-Dreams-Mobile-Redmi-ARM64.apk
-          file dist/Speed-Dreams-Mobile-Redmi-ARM64.apk
+          cp "$APK" dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
+          file dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
 
       - name: Verify package ABI, manifest, and native libraries
         run: |
           set -euo pipefail
-          APK="dist/Speed-Dreams-Mobile-Redmi-ARM64.apk"
+          APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
           unzip -l "$APK" > "$RUNNER_TEMP/apk-list.txt"
-          grep -q "lib/arm64-v8a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
+          grep -q "lib/armeabi-v7a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
           grep -q "assets/gamedata.zip" "$RUNNER_TEMP/apk-list.txt"
           unzip -p "$APK" AndroidManifest.xml > "$RUNNER_TEMP/AndroidManifest.bin"
           if strings "$RUNNER_TEMP/AndroidManifest.bin" | grep -qi "org.khronos.openxr.permission.OPENXR_SYSTEM"; then
             echo "Unexpected OpenXR permission found in binary manifest" >&2
             exit 1
           fi
-          unzip -l "$APK" | grep -E 'lib/arm64-v8a/|assets/gamedata.zip' | head -80
+          unzip -l "$APK" | grep -E 'lib/armeabi-v7a/|assets/gamedata.zip' | head -80
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
 
       - name: Upload phone APK and source/build reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: speed-dreams-mobile-arm64-apk
+          name: speed-dreams-mobile-redmi-armv7-apk
           path: |
-            dist/Speed-Dreams-Mobile-Redmi-ARM64.apk
+            dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
             dist/SHA256SUMS.txt
             ${{ runner.temp }}/android-source-bootstrap.log
             ${{ runner.temp }}/sd-port-build/android-source-lock.txt
