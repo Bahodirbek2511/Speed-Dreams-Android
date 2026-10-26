@@ -34,6 +34,12 @@ jobs:
       - name: Install pinned Android NDK and CMake
         run: sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
 
+      - name: Run phone-port regression tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s phone-port/tests -p 'test_*.py' -v
+          bash phone-port/tests/run_tests.sh
+
       - name: Bootstrap pinned Speed Dreams sources and native dependencies
         id: sources
         run: |
@@ -74,6 +80,26 @@ jobs:
           mkdir -p dist
           cp "$APK" dist/Speed-Dreams-Mobile-Redmi-Universal.apk
           file dist/Speed-Dreams-Mobile-Redmi-Universal.apk
+
+      - name: Enforce v1 and v2 signatures with apksigner
+        run: |
+          set -euo pipefail
+          APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          BT_DIR="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -s "$HOME/.android/debug.keystore"
+          # Gradle produced a v2-only APK despite both signing DSL properties.
+          # Re-sign the final deliverable explicitly before any final verification.
+          "$BT_DIR/apksigner" sign --verbose \
+            --ks "$HOME/.android/debug.keystore" \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --out "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
+            "$APK"
+          mv "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" "$APK"
 
       - name: Verify APK structure, manifest, signatures, and native ABIs
         run: |
