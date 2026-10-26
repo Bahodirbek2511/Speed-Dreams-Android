@@ -217,7 +217,7 @@ if "utf8proc::utf8proc" not in text:
     if old_link not in text:
         raise SystemExit("Could not locate tgfdata link list for utf8proc")
     text = text.replace(old_link, new_link, 1)
-cmake.write_text(text, encoding="utf-8", newline="\\n")
+cmake.write_text(text, encoding="utf-8", newline="\n")
 print("Configured pinned utf8proc source for the Android tgfdata target")
 PY
 
