@@ -77,7 +77,8 @@ for item in \
     "cJSON|https://github.com/DaveGamble/cJSON.git|v1.7.18|cJSON.c" \
     "rhash|https://github.com/rhash/RHash.git|v1.4.5|librhash/rhash.h" \
     "gl4es|https://github.com/ptitSeb/gl4es.git|2037865590d410bcd7b8d1f22b841472ed6d39ac|include/gl4esinit.h" \
-    "openal-soft|https://github.com/kcat/openal-soft.git|1.23.1|CMakeLists.txt"; do
+    "openal-soft|https://github.com/kcat/openal-soft.git|1.23.1|CMakeLists.txt" \
+    "utf8proc|https://github.com/JuliaStrings/utf8proc.git|v2.10.0|utf8proc.h"; do
     IFS='|' read -r name url ref marker <<< "$item"
     clone_pinned "$TP/$name" "$url" "$ref" "$marker"
 done
