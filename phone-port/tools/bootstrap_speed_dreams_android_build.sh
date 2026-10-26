@@ -222,7 +222,7 @@ else:
                 break
     if end < 0:
         raise SystemExit("Could not locate pthread affinity block closing brace")
-    s = s[:start] + "#if !defined(__ANDROID__) // SD phone port: pthread affinity\\n" + s[start:end] + "\\n#endif\\n" + s[end:]
+    s = s[:start] + "#if !defined(__ANDROID__) // SD phone port: pthread affinity\n" + s[start:end] + "\n#endif\n" + s[end:]
     p.write_text(s)
 PY
 
