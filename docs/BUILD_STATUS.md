@@ -5,31 +5,35 @@ Last reviewed: 2026-10-26
 ## Current result
 
 - Redmi-compatible Android APK: **not built**
-- Android app compiled from this repository: **no**
+- Android phone app compiled from this repository: **no**
 - Redmi A1+ install/start/gameplay test: **not performed**
-- Upstream portability audit: **successful** at [run 40293870115](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40293870115)
-- Existing Android/ARM64 engine-port reference: [SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), but its app requires a VR headset and OpenXR; it is not a usable Redmi phone APK.
+- Desktop upstream portability audit: **PASS**
+- Android VR reference / phone-gap audit: **PASS** at [run 40294933235](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40294933235)
+- Audit artifact: [download both audit reports](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/artifacts/12636939631)
+- Existing Android/ARM64 engine-port reference: [SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), but its app requires VR hardware and OpenXR; it is not a usable Redmi phone APK.
 
 ## Latest engineering findings
 
-The VR reference provides an Android NDK build configuration (arm64-v8a, NDK 27.2.12479018, minSdk 29) and has already adapted a substantial portion of Speed Dreams to Android. However, it requires an OpenXR runtime, a VR-headtracking feature, headset metadata/categories, and controller input. Its build also depends on companion Speed Dreams source/data and third-party libraries that are not all committed directly to that repository.
+The VR reference provides an Android NDK build configuration (arm64-v8a, NDK 27.2.12479018, minSdk 29) and has adapted substantial Speed Dreams engine code to Android. Its manifest, native initialization/frame loop, and controls remain headset-specific. A phone APK needs a separate non-OpenXR rendering/input path.
 
-A phone APK therefore needs a distinct non-OpenXR rendering and touch-input path, plus a reproducible dependency checkout/build before packaging. Stripping the VR manifest entries alone would only create an APK that may install but is not expected to start the game correctly.
+The Android VR project also depends on companion Speed Dreams source/data and third-party libraries that are not all committed directly to its repository. A clean build must recreate and pin these inputs before a native compile can be meaningfully attempted.
 
 ## Build log
 
 | Item | Result |
 |---|---|
-| Portability audit | PASS — run 40293870115 |
-| Native Android build | NOT RUN |
-| APK package | NOT CREATED |
+| Desktop upstream source audit | PASS |
+| Android VR reference phone-gap audit | PASS |
+| Native Android phone build | NOT RUN |
+| Phone APK package | NOT CREATED |
 | Redmi A1+ runtime test | NOT RUN |
 
-When the first native build is attempted, record:
-1. exact commit SHA and source/dependency revisions;
-2. runner image, JDK, Android SDK/NDK and CMake versions;
-3. exact build command;
-4. result and first meaningful compiler/linker error;
-5. APK artifact path, package ID, ABI, min SDK and signing mode.
+## Next required engineering gates
 
-Do not report a successful build unless the workflow completed and the produced APK was inspected.
+1. Establish and pin all source/dependency checkouts.
+2. Implement a phone-only GLES surface/frame loop with no OpenXR runtime dependency.
+3. Implement touch-driven menu and driving controls.
+4. Build the full native game and inspect the resulting phone APK.
+5. Test install, startup, track load, input, sound, and a complete race on Redmi A1+.
+
+A successful source audit is not a successful Android game build. Do not label any artifact as a playable phone APK until the native engine is packaged and device-tested.
