@@ -159,5 +159,17 @@ echo "## GUI screen show and swap functions"
 sed -n '735,805p' "$WORK/engine/src/libs/tgfclient/guiscreen.cpp" || true
 sed -n '1340,1370p' "$WORK/engine/src/libs/tgfclient/gui.cpp" || true
 
+echo
+echo "## Joystick input hook candidates"
+echo
+grep -R -n --include='*.cpp' --include='*.c' --include='*.h' \
+  -E 'GfctrlJoyGetCurrent|SDL_JoystickGetAxis|SDL_JoystickGetButton|GfctrlJoy|tCtrlJoyInfo|joyInfo' \
+  "$WORK/engine/src/libs" "$WORK/engine/src/interfaces" "$WORK/engine/src/drivers" 2>/dev/null | head -150 || true
+echo
+echo "## Joystick API declarations"
+echo
+grep -R -n --include='*.h' -E 'GfctrlJoyGetCurrent|GfctrlJoy|tCtrlJoyInfo' \
+  "$WORK/engine/src" 2>/dev/null | head -80 || true
+
 cat "$REPORT"
 
