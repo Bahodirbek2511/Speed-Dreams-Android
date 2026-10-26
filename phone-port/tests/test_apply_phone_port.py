@@ -267,6 +267,7 @@ int GfctrlJoyGetCurrentStates(tCtrlJoyInfo *joyInfo) { return 0; }
         race = (self.engine / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp").read_text()
         self.assertIn("SDPhoneUpdateInput(1);", race)
         self.assertIn("SD_PHONE_UPSTREAM_MAIN", race)
+        self.assertIn('extern "C" void SDPhoneUpdateInput(int racing);', race)
 
         control = (self.engine / "src/libs/tgfclient/control.cpp").read_text()
         self.assertIn("SDPhoneReadJoystick(&phoneButtons, phoneAxes)", control)

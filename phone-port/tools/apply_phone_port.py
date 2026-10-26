@@ -293,6 +293,16 @@ def patch_single_eye_loop(engine_root: Path) -> str:
     # The public upstream main branch has no VR eye hooks. Its race callback
     # is mono and ends at GfuiSwapBuffers(), so update touch controls there.
     if not calls:
+        # Upstream's race callback is compiled in a separate translation unit
+        # from gui.cpp, so it needs its own C-linkage declaration for the phone
+        # input bridge. Keep this before the early-return/idempotence check.
+        declaration = (
+            "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            'extern "C" void SDPhoneUpdateInput(int racing);\n'
+            "#endif\n\n"
+        )
+        if 'extern "C" void SDPhoneUpdateInput(int racing);' not in text:
+            text = declaration + text
         if "SDPhoneUpdateInput(1);" in text:
             return text
         marker = re.compile(r"(static\s+void\s+rmRedisplay\s*\(\s*\)\s*\{)")

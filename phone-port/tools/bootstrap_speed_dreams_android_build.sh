@@ -207,17 +207,10 @@ utf8proc = Path(sys.argv[2]).resolve()
 text = cmake.read_text(encoding="utf-8")
 find_line = "find_package(utf8proc REQUIRED)"
 add_line = f'add_subdirectory("{utf8proc.as_posix()}" "${{CMAKE_BINARY_DIR}}/utf8proc")'
-alias_block = (
-    "if(NOT TARGET utf8proc::utf8proc)\n"
-    "    add_library(utf8proc::utf8proc ALIAS utf8proc)\n"
-    "endif()"
-)
 if find_line in text:
     text = text.replace(find_line, add_line, 1)
 elif add_line not in text:
     raise SystemExit("Unexpected tgfdata CMake file: utf8proc dependency hook missing")
-if alias_block not in text:
-    text = text.replace(add_line, add_line + "\n" + alias_block, 1)
 # Ensure the public header include path is passed to tgfdata even when the
 # project helper does not propagate imported/alias target usage requirements.
 include_line = f'target_include_directories(tgfdata PRIVATE "{utf8proc.as_posix()}")'
@@ -237,38 +230,6 @@ if "utf8proc::utf8proc" not in text:
     text = text.replace(old_link, new_link, 1)
 cmake.write_text(text, encoding="utf-8", newline="\n")
 print("Configured pinned utf8proc source for the Android tgfdata target")
-PY
-
-# The Android engine's own include list reliably contains src/libs/tgfdata,
-# but its legacy CMake helper does not propagate utf8proc's public include path.
-# Stage the exact pinned public header beside drivers.cpp; linking still uses the
-# utf8proc::utf8proc library target configured above.
-UTF8PROC_HEADER="$TP/utf8proc/utf8proc.h"
-TGFDATA_HEADER="$ENGINE/src/libs/tgfdata/utf8proc.h"
-if [[ ! -s "$UTF8PROC_HEADER" ]]; then
-    echo "Pinned utf8proc public header is missing: $UTF8PROC_HEADER" >&2
-    exit 6
-fi
-install -m 0644 "$UTF8PROC_HEADER" "$TGFDATA_HEADER"
-if ! cmp -s "$UTF8PROC_HEADER" "$TGFDATA_HEADER"; then
-    echo "Staged utf8proc header differs from the pinned source" >&2
-    exit 6
-fi
-echo "Staged pinned utf8proc.h into tgfdata's existing include directory"
-
-# Upstream grSky.cpp uses std::exp but currently relies on transitive math
-# includes; Android NDK Clang does not guarantee that exposure. Include <cmath>
-# explicitly so std::exp is declared by the standard C++ header.
-python3 - "$ENGINE/src/modules/graphic/ssggraph/grSky.cpp" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1])
-s = p.read_text(encoding="utf-8")
-if "std::exp(" not in s:
-    raise SystemExit("Unexpected grSky.cpp layout; std::exp call missing")
-if "#include <cmath>" not in s:
-    s = "#include <cmath>\n" + s
-    p.write_text(s, encoding="utf-8", newline="\n")
 PY
 
 # Android NDK does not expose glibc's pthread_setaffinity_np(). CPU affinity
