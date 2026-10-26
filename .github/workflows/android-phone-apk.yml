@@ -76,12 +76,12 @@ jobs:
           test -s "$APK"
           mkdir -p dist
           cp "$APK" dist/Speed-Dreams-Mobile-Redmi-Universal.apk
-          file dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
+          file dist/Speed-Dreams-Mobile-Redmi-Universal.apk
 
       - name: Verify package ABI, manifest, and native libraries
         run: |
           set -euo pipefail
-          APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
+          APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           unzip -l "$APK" > "$RUNNER_TEMP/apk-list.txt"
           grep -q "lib/armeabi-v7a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
           grep -q "lib/arm64-v8a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
@@ -91,7 +91,7 @@ jobs:
             echo "Unexpected OpenXR permission found in binary manifest" >&2
             exit 1
           fi
-          unzip -l "$APK" | grep -E 'lib/armeabi-v7a/|assets/gamedata.zip' | head -80
+          unzip -l "$APK" | grep -E 'lib/(armeabi-v7a|arm64-v8a)/|assets/gamedata.zip' | head -100
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
 
       - name: Publish APK as a direct Chrome download
@@ -101,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="redmi-a1plus-armv7"
-          APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
+          APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
@@ -118,7 +118,7 @@ jobs:
         with:
           name: speed-dreams-mobile-redmi-universal-apk
           path: |
-            dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
+            dist/Speed-Dreams-Mobile-Redmi-Universal.apk
             dist/SHA256SUMS.txt
             ${{ runner.temp }}/android-source-bootstrap.log
             ${{ runner.temp }}/sd-port-build/android-source-lock.txt
