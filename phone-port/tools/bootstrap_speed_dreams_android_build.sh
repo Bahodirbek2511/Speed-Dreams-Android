@@ -159,6 +159,24 @@ if old_return in ps:
 elif new_return not in ps:
     raise SystemExit("Unexpected PLIB ssgParser.cxx layout; refusing unsafe patch")
 parser.write_text(ps)
+
+# PLIB's AC3D saver uses the suffix returned by strrchr() as a writable
+# legacy pointer. Android NDK Clang exposes the const-qualified overload.
+saver = p.parent / "ssgSaveAC.cxx"
+vs = saver.read_text()
+old_backslash = "char *s = strrchr ( tfname, '\\\\' ) ;"
+new_backslash = "char *s = (char *)strrchr ( tfname, '\\\\' ) ;"
+old_slash = "s = strrchr ( tfname, '/' ) ;"
+new_slash = "s = (char *)strrchr ( tfname, '/' ) ;"
+if old_backslash in vs:
+    vs = vs.replace(old_backslash, new_backslash, 1)
+elif new_backslash not in vs:
+    raise SystemExit("Unexpected PLIB ssgSaveAC.cxx backslash lookup; refusing unsafe patch")
+if old_slash in vs:
+    vs = vs.replace(old_slash, new_slash, 1)
+elif new_slash not in vs:
+    raise SystemExit("Unexpected PLIB ssgSaveAC.cxx slash lookup; refusing unsafe patch")
+saver.write_text(vs)
 PY
 printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5-rc1.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
