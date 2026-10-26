@@ -12,6 +12,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
+#include <GL/gl.h>
 
 #include <SDL.h>
 #include <gl4esinit.h>
