@@ -104,6 +104,15 @@ extern "C" void SDPhoneUpdateInput(int racing)
 #endif
 }
 
+
+extern "C" int SDPhoneReadJoystick(int* buttons, float* axes)
+{
+    if (!buttons || !axes) return -1;
+    *buttons = static_cast<int>(gLastInput.buttons);
+    for (std::size_t i=0; i<8; ++i) axes[i] = gLastInput.axes[i];
+    return 0;
+}
+
 extern "C" int VrJoyRead(int index,int* buttons,float* axes)
 {
     if(index!=0 || !buttons || !axes) return -1;
