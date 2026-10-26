@@ -4,36 +4,43 @@ Last reviewed: 2026-10-26
 
 ## Current result
 
-- Redmi-compatible Android APK: **not built**
-- Android phone app compiled from this repository: **no**
-- Redmi A1+ install/start/gameplay test: **not performed**
-- Desktop upstream portability audit: **PASS**
-- Android VR reference / phone-gap audit: **PASS** at [run 40294933235](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40294933235)
-- Audit artifact: [download both audit reports](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/artifacts/12636939631)
-- Existing Android/ARM64 engine-port reference: [SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), but its app requires VR hardware and OpenXR; it is not a usable Redmi phone APK.
+- Complete Redmi-compatible game APK: **not built**
+- Complete Speed Dreams Android native engine build: **blocked / not run**
+- Android ARM64 phone input/JNI library: **PASS** — [workflow run](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664)
+- Input library artifact: [libsdphoneinput.so and exported-symbol report](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664/artifacts/12640157250)
+- Host input tests and integration-patcher fixture tests: **PASS** — [workflow run](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300477268)
+- Redmi A1+ installation/gameplay/performance test: **not performed**
 
-## Latest engineering findings
+The input/JNI artifact is a native control library only. It does not contain the Speed Dreams engine, tracks, cars, or a launchable game APK.
 
-The VR reference provides an Android NDK build configuration (arm64-v8a, NDK 27.2.12479018, minSdk 29) and has adapted substantial Speed Dreams engine code to Android. Its manifest, native initialization/frame loop, and controls remain headset-specific. A phone APK needs a separate non-OpenXR rendering/input path.
+## Confirmed source blocker
 
-The Android VR project also depends on companion Speed Dreams source/data and third-party libraries that are not all committed directly to its repository. A clean build must recreate and pin these inputs before a native compile can be meaningfully attempted.
+The VR reference CMake project expects a companion Speed Dreams engine checkout on branch quest-port. The source probe found that the Forgejo engine remote responds but no longer advertises that branch. The probe recorded other branches but does not establish that they contain the Android patches needed by the VR reference.
 
-## Build log
+- [Source probe workflow](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191)
+- [Probe report artifact](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191/artifacts/12640256018)
 
-| Item | Result |
+Switching to the regular desktop main branch or merely removing OpenXR from the manifest would not prove the Android engine sources compile or run. The required Android engine changes and exact dependency revisions must be recovered or reimplemented first.
+
+## Verified checks
+
+| Check | Result |
 |---|---|
-| Desktop upstream source audit | PASS |
+| Classic upstream source portability audit | PASS |
 | Android VR reference phone-gap audit | PASS |
-| Native Android phone build | NOT RUN |
-| Phone APK package | NOT CREATED |
+| Phone touch-control host tests | PASS |
+| Phone integration patcher tests on isolated fixtures | PASS |
+| Android arm64-v8a input/JNI library compile and symbol inspection | PASS |
+| Complete Speed Dreams Android engine build | BLOCKED |
+| Full game APK package | NOT CREATED |
 | Redmi A1+ runtime test | NOT RUN |
 
 ## Next required engineering gates
 
-1. Establish and pin all source/dependency checkouts.
-2. Implement a phone-only GLES surface/frame loop with no OpenXR runtime dependency.
-3. Implement touch-driven menu and driving controls.
-4. Build the full native game and inspect the resulting phone APK.
-5. Test install, startup, track load, input, sound, and a complete race on Redmi A1+.
+1. Reconstruct/pin the Android-compatible engine source and all dependency/data inputs.
+2. Apply the phone backend to the real engine source and validate it against that source (fixture tests are not sufficient).
+3. Build the full native engine with the Android NDK; fix actual compile/link/runtime errors.
+4. Package the full game plus redistributable game data, inspect the APK manifest/ABI/native libraries.
+5. Install on Redmi A1+, complete a race, and measure startup time, peak memory and sustained FPS.
 
-A successful source audit is not a successful Android game build. Do not label any artifact as a playable phone APK until the native engine is packaged and device-tested.
+A source audit or a compiled input library is not a completed game build. Do not label any artifact as a playable phone APK until the engine, renderer and gameplay are tested.
