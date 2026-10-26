@@ -9,7 +9,7 @@ on:
       - ".github/workflows/android-phone-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-phone-apk:
@@ -92,6 +92,23 @@ jobs:
           fi
           unzip -l "$APK" | grep -E 'lib/armeabi-v7a/|assets/gamedata.zip' | head -80
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
+
+      - name: Publish APK as a direct Chrome download
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="redmi-a1plus-armv7"
+          APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
+          SUMS="dist/SHA256SUMS.txt"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$SUMS" --clobber
+          else
+            gh release create "$TAG" "$APK" "$SUMS" \
+              --title "Speed Dreams Android — Redmi A1+ (ARMv7)" \
+              --notes "Build for 32-bit ARM Android devices such as Redmi A1+. APK was built by GitHub Actions; device-level runtime testing is not yet confirmed."
+          fi
 
       - name: Upload phone APK and source/build reports
         if: always()
