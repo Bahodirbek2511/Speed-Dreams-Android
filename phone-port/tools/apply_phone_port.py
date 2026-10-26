@@ -146,6 +146,40 @@ def patch_gradle(path: Path) -> str:
         "\n", text)
     require("org.khronos.openxr:openxr_loader_for_android" not in text,
             "OpenXR Gradle dependency remains in phone mode")
+
+    # Keep the flat-screen app separate from the upstream VR package and
+    # from earlier experimental APKs, which were signed by ephemeral CI keys.
+    if "applicationId 'com.speeddreams.mobile'" not in text:
+        text = replace_once(text, "applicationId 'com.speeddreamsvr'",
+            "applicationId 'com.speeddreams.mobile'", "phone application ID")
+    if "versionCode 7" not in text:
+        text = replace_once(text, "versionCode 6", "versionCode 7",
+            "phone version code")
+    if "versionName '0.10.0-phone1'" not in text:
+        text = replace_once(text, "versionName '0.10.0-beta'",
+            "versionName '0.10.0-phone1'", "phone version name")
+
+    # Firmware images vary; ship both 64-bit and 32-bit ARM native libraries.
+    universal_abi = "abiFilters 'arm64-v8a', 'armeabi-v7a'"
+    if universal_abi not in text:
+        text = replace_once(text, "abiFilters 'arm64-v8a'", universal_abi,
+            "universal ARM ABI filters")
+    require(text.count(universal_abi) == 1 and
+            "abiFilters 'arm64-v8a'" not in text.replace(universal_abi, "", 1),
+            "Android ABI filters are not configured for both ARM variants")
+
+    # Explicitly enable both JAR/v1 and APK/v2 signatures for compatibility
+    # with vendor package installers; modern Android still verifies v2.
+    has_v1 = "v1SigningEnabled true" in text
+    has_v2 = "v2SigningEnabled true" in text
+    if not has_v1 and not has_v2:
+        text = replace_once(text, "keyPassword 'android'",
+            "keyPassword 'android'\\n            v1SigningEnabled true\\n            v2SigningEnabled true",
+            "v1/v2 APK signing settings")
+    elif not (has_v1 and has_v2):
+        raise PortError("Only one of the required v1/v2 signing settings is present")
+    require("v1SigningEnabled true" in text and "v2SigningEnabled true" in text,
+            "APK v1/v2 signing is not enabled")
     return text
 
 
@@ -160,10 +194,14 @@ def patch_manifest(path: Path) -> str:
         name = child.attrib.get(ANDROID_NS + "name", "")
         if tag == "queries":
             root.remove(child)
-        elif tag == "uses-feature" and name in {
-            "android.hardware.vr.headtracking", "oculus.software.handtracking"
-        }:
-            root.remove(child)
+        elif tag == "uses-feature":
+            if name in {"android.hardware.vr.headtracking", "oculus.software.handtracking"}:
+                root.remove(child)
+            elif ANDROID_NS + "glEsVersion" in child.attrib:
+                # The phone EGL backend has an ES3-to-ES2 fallback. Keeping the
+                # VR reference's GLES 3.1 feature requirement is unnecessarily strict.
+                child.set(ANDROID_NS + "glEsVersion", "0x00020000")
+                child.set(ANDROID_NS + "required", "true")
         elif tag == "uses-permission" and name in remove_permissions:
             root.remove(child)
 
@@ -200,6 +238,8 @@ def patch_manifest(path: Path) -> str:
             "VR headtracking feature remained in phone manifest")
     require("org.khronos.openxr" not in value and "IMMERSIVE_HMD" not in value,
             "OpenXR manifest entries remained in phone manifest")
+    require('android:glEsVersion="0x00020000"' in value,
+            "Phone manifest still requires GLES 3.1 instead of GLES 2.0")
     return value + "\n"
 
 
