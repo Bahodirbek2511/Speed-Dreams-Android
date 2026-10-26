@@ -125,13 +125,14 @@ jobs:
           TAG="redmi-a1plus-armv7"
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
+          TITLE="Speed Dreams Mobile — Redmi A1+ (signed universal ARM)"
+          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone1. Includes arm64-v8a and armeabi-v7a native libraries, v1/v2 signatures, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
             gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
           else
-            gh release create "$TAG" "$APK" "$SUMS" \
-              --title "Speed Dreams Mobile — Redmi A1+ (signed universal ARM)" \
-              --notes "Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone1. Includes arm64-v8a and armeabi-v7a native libraries, v1/v2 signatures, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
+            gh release create "$TAG" "$APK" "$SUMS" --title "$TITLE" --notes "$NOTES"
           fi
 
       - name: Upload phone APK and source/build reports
