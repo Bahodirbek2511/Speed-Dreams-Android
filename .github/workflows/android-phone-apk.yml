@@ -100,7 +100,9 @@ jobs:
           grep -Fq "package: name='com.speeddreams.mobile' versionCode='7' versionName='0.10.0-phone1'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "sdkVersion:'29'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "targetSdkVersion:'32'" "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fq "native-code: 'arm64-v8a' 'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "native-code:" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
 
           # Recheck signing explicitly; require v1 for vendor-installer compatibility
           # and v2 for modern Android. Never edit the APK after this step.
