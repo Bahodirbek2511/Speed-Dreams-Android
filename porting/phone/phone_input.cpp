@@ -52,10 +52,20 @@ float normalize_steering(float value)
 
 void queue_touch_locked(InputState& input, const SDPhoneTouchEvent& event)
 {
-    /* On overflow, discard the oldest item rather than corrupting the ring. */
+    /*
+     * Dropping an arbitrary oldest event could lose a DOWN/UP pair and leave
+     * the menu mouse button latched. On overflow, cancel the pending gesture
+     * queue atomically; the engine adapter consumes CANCEL and releases input.
+     * The triggering event is discarded so no stale drag survives the reset.
+     */
     if (input.touch_count == kTouchQueueCapacity) {
-        input.touch_head = (input.touch_head + 1) % kTouchQueueCapacity;
-        --input.touch_count;
+        input.touch_head = 0;
+        input.touch_tail = 1;
+        input.touch_count = 1;
+        SDPhoneTouchEvent cancel = event;
+        cancel.action = SD_PHONE_TOUCH_CANCEL;
+        input.touch_queue[0] = cancel;
+        return;
     }
     input.touch_queue[input.touch_tail] = event;
     input.touch_tail = (input.touch_tail + 1) % kTouchQueueCapacity;
