@@ -128,6 +128,39 @@ int main()
     assert(event.action == SD_PHONE_TOUCH_CANCEL);
     assert(SDPhoneInputPollMenuTouch(&event) == 0);
 
+    /* Event-queue overflow must synthesize a key-up rather than leaving a key
+       latched after the game has already consumed its key-down. */
+    VrQueueKey(777, 1, 0, 0);
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_KEY_DOWN && engine_event.a == 777);
+    for (int i = 0; i < 300; ++i) {
+        VrQueueMouseMotion(i, i, 0);
+    }
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_KEY_UP && engine_event.a == 777);
+    while (VrPollEvent(&engine_event) == 1) {}
+
+    /* The same recovery rule releases an already-consumed mouse-down. */
+    VrQueueMouseButton(1, 1, 10, 20);
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_MOUSE_BUTTON && engine_event.b == 1);
+    for (int i = 0; i < 300; ++i) {
+        VrQueueMouseMotion(i, i, 1);
+    }
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_MOUSE_BUTTON);
+    assert(engine_event.a == 1 && engine_event.b == 0);
+    while (VrPollEvent(&engine_event) == 1) {}
+
+    /* Explicit reset also releases keys that the engine may have consumed. */
+    VrQueueKey(888, 1, 0, 0);
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_KEY_DOWN && engine_event.a == 888);
+    SDPhoneEngineResetEvents();
+    assert(VrPollEvent(&engine_event) == 1);
+    assert(engine_event.type == VR_EV_KEY_UP && engine_event.a == 888);
+    while (VrPollEvent(&engine_event) == 1) {}
+
     SDPhoneInputReset();
     assert(SDPhoneInputRead(0, &buttons, axes) == 0);
     assert(buttons == 0);
