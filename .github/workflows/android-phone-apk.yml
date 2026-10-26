@@ -91,7 +91,7 @@ jobs:
           # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
           "$BT_DIR/apksigner" sign --verbose \
-            --min-sdk-version 29 \
+            --min-sdk-version 21 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled false \
