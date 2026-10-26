@@ -138,7 +138,7 @@ PhoneFrameInput PhoneControls::update(int width, int height, bool racing)
             } else if (event.phase == TouchPhase::Move) {
                 out.menuEvents.push_back({MenuEventType::Motion, x, y, 1});
             } else if (event.phase == TouchPhase::Up || event.phase == TouchPhase::Cancel) {
-                out.menuEvents.push_back({MenuEventType::Motion, x, y, 1});
+                out.menuEvents.push_back({MenuEventType::Motion, x, y, 0});
                 out.menuEvents.push_back({MenuEventType::ButtonUp, x, y, 1});
             }
         }
