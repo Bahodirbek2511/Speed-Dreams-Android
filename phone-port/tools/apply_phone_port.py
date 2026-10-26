@@ -374,20 +374,20 @@ def patch_guiscreen(path: Path) -> str:
             "#endif")
         block = block[:context_start] + original_context + block[context_end:]
 
-        # Fullscreen mode selection is desktop-only. Keep its if/else pair
-        # together under one guard so preprocessing cannot leave a dangling else.
-        fullscreen_re = re.compile(
-            r"(?m)^(\s*)if\s*\([^\n]*\)\s*\{"
-            r"(?:(?!^\s*\}).|\n)*?^\s*\}\s*else\s+"
-            r"SDL_SetWindowFullscreen\(GfuiWindow,\s*SDL_WINDOW_FULLSCREEN\);",
-            re.DOTALL)
-        fullscreen_pos = block.find("SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN)")
-        if fullscreen_pos >= 0 and "SD_PHONE_UPSTREAM_MAIN" not in block[max(0, fullscreen_pos-500):fullscreen_pos]:
-            block, fullscreen_count = fullscreen_re.subn(
-                lambda m: "#ifndef SD_PHONE_UPSTREAM_MAIN\n" + m.group(0) + "\n#endif",
-                block, count=1)
-            require(fullscreen_count == 1,
-                    "Could not guard the complete desktop fullscreen if/else block")
+        # Preserve the upstream if/else braces; only disable the fullscreen call on phones.
+        fullscreen_else = "} else SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);"
+        if fullscreen_else in block:
+            block = block.replace(
+                fullscreen_else,
+                "} else {\n"
+                "#ifndef SD_PHONE_UPSTREAM_MAIN\n"
+                "        SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);\n"
+                "#endif\n"
+                "    }",
+                1)
+        else:
+            require("SD_PHONE_UPSTREAM_MAIN" in block,
+                    "Could not locate desktop fullscreen else branch")
         text = text[:function_start] + block + text[function_end:]
 
     resizable_marker = "    GfScrResizable = GfScrGetResizable();"
