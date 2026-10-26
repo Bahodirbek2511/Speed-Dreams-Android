@@ -232,6 +232,23 @@ cmake.write_text(text, encoding="utf-8", newline="\n")
 print("Configured pinned utf8proc source for the Android tgfdata target")
 PY
 
+# The Android engine's own include list reliably contains src/libs/tgfdata,
+# but its legacy CMake helper does not propagate utf8proc's public include path.
+# Stage the exact pinned public header beside drivers.cpp; linking still uses the
+# utf8proc::utf8proc library target configured above.
+UTF8PROC_HEADER="$TP/utf8proc/utf8proc.h"
+TGFDATA_HEADER="$ENGINE/src/libs/tgfdata/utf8proc.h"
+if [[ ! -s "$UTF8PROC_HEADER" ]]; then
+    echo "Pinned utf8proc public header is missing: $UTF8PROC_HEADER" >&2
+    exit 6
+fi
+install -m 0644 "$UTF8PROC_HEADER" "$TGFDATA_HEADER"
+if ! cmp -s "$UTF8PROC_HEADER" "$TGFDATA_HEADER"; then
+    echo "Staged utf8proc header differs from the pinned source" >&2
+    exit 6
+fi
+echo "Staged pinned utf8proc.h into tgfdata's existing include directory"
+
 # Android NDK does not expose glibc's pthread_setaffinity_np(). CPU affinity
 # is an optional desktop optimization; skip that block on Android.
 python3 - "$ENGINE/src/libs/tgf/linuxspec.cpp" <<'PY'
