@@ -211,6 +211,17 @@ if find_line in text:
     text = text.replace(find_line, add_line, 1)
 elif add_line not in text:
     raise SystemExit("Unexpected tgfdata CMake file: utf8proc dependency hook missing")
+# Ensure the public header include path is passed to tgfdata even when the
+# project helper does not propagate imported/alias target usage requirements.
+include_line = f'target_include_directories(tgfdata PRIVATE "{utf8proc.as_posix()}")'
+if include_line not in text:
+    link_line = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient utf8proc::utf8proc)"
+    if link_line not in text and "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)" in text:
+        text = text.replace(
+            "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)",
+            link_line, 1)
+    text += "\n" + include_line + "\n"
+
 if "utf8proc::utf8proc" not in text:
     old_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)"
     new_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient utf8proc::utf8proc)"
