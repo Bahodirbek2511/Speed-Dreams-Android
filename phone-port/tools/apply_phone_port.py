@@ -371,20 +371,22 @@ def patch_guiscreen(path: Path) -> str:
             "#endif",
             "phone screen resize-mode selection")
 
-    shutdown_context = (
-        "    SDL_GL_MakeCurrent(GfuiWindow,GLContext);\n"
-        "    SDL_GL_DeleteContext(GLContext);\n"
-        "    GLContext = NULL;"
+    shutdown_context_re = re.compile(
+        r"    SDL_GL_MakeCurrent\s*\(\s*GfuiWindow\s*,\s*GLContext\s*\);\s*\n"
+        r"    SDL_GL_DeleteContext\s*\(\s*GLContext\s*\);\s*\n"
+        r"    GLContext\s*=\s*NULL;"
     )
-    if "phone EGL context remains current on the game thread" not in text and shutdown_context in text:
-        text = replace_once(text, shutdown_context,
+    if "phone EGL context remains current on the game thread" not in text:
+        text, count = shutdown_context_re.subn(
             "#ifndef SD_PHONE_UPSTREAM_MAIN\n"
-            "    SDL_GL_MakeCurrent(GfuiWindow,GLContext);\n"
+            "    SDL_GL_MakeCurrent(GfuiWindow, GLContext);\n"
             "    SDL_GL_DeleteContext(GLContext);\n"
             "#endif\n"
             "    // phone EGL context remains current on the game thread.\n"
             "    GLContext = NULL;",
-            "phone screen shutdown context handling")
+            text, count=1)
+        require(count == 1,
+                "Could not isolate the SDL context destruction in GfScrShutdown()")
 
     require("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)" in text,
             "Phone EGL surface size was not wired into screen initialization")
