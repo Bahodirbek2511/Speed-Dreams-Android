@@ -1,0 +1,77 @@
+name: Android ARM64 phone-input library
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "porting/phone/**"
+      - ".github/workflows/android-input-arm64.yml"
+  pull_request:
+    paths:
+      - "porting/phone/**"
+      - ".github/workflows/android-input-arm64.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-arm64:
+    name: Build and inspect Android ARM64 JNI library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out porting workspace
+        uses: actions/checkout@v4
+
+      - name: Install Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned NDK and CMake
+        run: sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Configure phone input for Android ARM64
+        run: |
+          cmake -S porting/phone -B build/phone-android-arm64 \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-29 \
+            -DSD_PHONE_INPUT_BUILD_TESTS=OFF
+
+      - name: Build JNI shared library
+        run: cmake --build build/phone-android-arm64 --parallel 2
+
+      - name: Inspect ABI and required exported symbols
+        run: |
+          set -euo pipefail
+          lib="build/phone-android-arm64/libsdphoneinput.so"
+          test -s "$lib"
+          file "$lib"
+          llvm_readelf="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          llvm_nm="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          "$llvm_readelf" -h "$lib" | grep -E 'Class:|Machine:'
+          "$llvm_readelf" -h "$lib" | grep -q 'ELF64'
+          "$llvm_readelf" -h "$lib" | grep -q 'AArch64'
+          "$llvm_nm" -D --defined-only "$lib" > build/phone-android-arm64/exports.txt
+          for symbol in \
+            Java_com_speeddreamsphone_PhoneNative_resetInput \
+            Java_com_speeddreamsphone_PhoneNative_setSteering \
+            Java_com_speeddreamsphone_PhoneNative_setThrottle \
+            Java_com_speeddreamsphone_PhoneNative_setBrake \
+            Java_com_speeddreamsphone_PhoneNative_setButton \
+            Java_com_speeddreamsphone_PhoneNative_setViewport \
+            Java_com_speeddreamsphone_PhoneNative_queueMenuTouch \
+            Java_com_speeddreamsphone_PhoneNative_queueKey \
+            VrJoyRead VrPollEvent VrQueueMouseMotion; do
+            grep -q "$symbol" build/phone-android-arm64/exports.txt
+          done
+
+      - name: Upload Android ARM64 native library and symbol report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdphoneinput-arm64-v8a
+          path: |
+            build/phone-android-arm64/libsdphoneinput.so
+            build/phone-android-arm64/exports.txt
+          if-no-files-found: error
+          retention-days: 14
