@@ -167,14 +167,21 @@ public final class PhoneControlsView extends View {
                 PhoneNative.setSteering(pressed ? steering : 0.0f);
                 break;
             case ZONE_THROTTLE:
-                PhoneNative.setThrottle(pressure);
+                PhoneNative.setThrottle(pressed ? Math.max(0.45f, pressure) : 0.0f);
                 break;
             case ZONE_BRAKE:
-                PhoneNative.setBrake(pressure);
+                PhoneNative.setBrake(pressed ? Math.max(0.45f, pressure) : 0.0f);
                 break;
             default:
                 if (zone >= ZONE_BUTTON_BASE) {
-                    PhoneNative.setButton(zone - ZONE_BUTTON_BASE, pressed);
+                    int button = zone - ZONE_BUTTON_BASE;
+                    if (button == BUTTON_CAMERA) {
+                        PhoneNative.queueKey(PhoneNative.KEY_F2, pressed);
+                    } else if (button == BUTTON_PAUSE) {
+                        PhoneNative.queueKey(PhoneNative.KEY_ESCAPE, pressed);
+                    } else {
+                        PhoneNative.setButton(button, pressed);
+                    }
                 }
                 break;
         }
@@ -201,8 +208,6 @@ public final class PhoneControlsView extends View {
                 movePointers(event);
                 return true;
             case MotionEvent.ACTION_POINTER_UP:
-                endPointer(event, index, false);
-                return true;
             case MotionEvent.ACTION_UP:
                 endPointer(event, index, false);
                 return true;
