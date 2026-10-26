@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CODE_URL="\${SPEED_DREAMS_CODE_URL:-https://forge.a-lec.org/speed-dreams/speed-dreams-code.git}"
-DATA_URL="\${SPEED_DREAMS_DATA_URL:-https://forge.a-lec.org/speed-dreams/speed-dreams-data.git}"
-CODE_REF="\${SPEED_DREAMS_CODE_REF:-quest-port}"
-REPORT="\${1:-reports/android-engine-source-probe.md}"
+CODE_URL="${SPEED_DREAMS_CODE_URL:-https://forge.a-lec.org/speed-dreams/speed-dreams-code.git}"
+DATA_URL="${SPEED_DREAMS_DATA_URL:-https://forge.a-lec.org/speed-dreams/speed-dreams-data.git}"
+CODE_REF="${SPEED_DREAMS_CODE_REF:-quest-port}"
+REPORT="${1:-reports/android-engine-source-probe.md}"
 
 mkdir -p "$(dirname "$REPORT")"
 tmp="$(mktemp)"
