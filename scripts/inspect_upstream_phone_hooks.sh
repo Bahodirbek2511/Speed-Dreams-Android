@@ -55,4 +55,42 @@ RACE="$WORK/engine/src/modules/userinterface/legacymenu/racescreens/racerunningm
   fi
 } > "$REPORT"
 
+python3 - "$WORK/engine" >> "$REPORT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+patterns = re.compile(r"(?:GfuiRedraw\s*\(|SDL_GL_SwapWindow\s*\(|SDL_GL_SwapBuffers\s*\(|glutSwapBuffers\s*\(|SDL_CreateWindow\s*\(|SDL_GL_CreateContext\s*\(|eventLoop\(\)\.setRedisplayCB)")
+print("## Candidate frame-loop implementation sites")
+print()
+printed = 0
+for path in sorted((root / "src").rglob("*")):
+    if path.suffix not in {".cpp", ".c", ".h", ".cc"}:
+        continue
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        continue
+    matches = [i for i, line in enumerate(lines) if patterns.search(line)]
+    if not matches:
+        continue
+    for i in matches[:3]:
+        start, end = max(0, i - 6), min(len(lines), i + 10)
+        print(f"### {path.relative_to(root)}:{i + 1}")
+        print("~~~cpp")
+        for n in range(start, end):
+            print(f"{n + 1}: {lines[n]}")
+        print("~~~")
+        print()
+        printed += 1
+        if printed >= 12:
+            break
+    if printed >= 12:
+        break
+if printed == 0:
+    print("No common SDL/GUI frame-loop implementation markers found.")
+PY
+
 cat "$REPORT"
+
