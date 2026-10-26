@@ -193,6 +193,9 @@ SDL_Surface* gfScrCreateWindow(int nWinWidth, int nWinHeight, int nTotalDepth, i
 
     // If specified, try best possible settings.
     PScreenSurface = SDL_CreateRGBSurface(0, nWinWidth, nWinHeight, nTotalDepth, 0, 0, 0, 0);
+    if (bfVideoMode & SDL_WINDOW_FULLSCREEN_DESKTOP) {
+        SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    } else SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);
     return PScreenSurface;
 }
 
@@ -249,6 +252,8 @@ int GfctrlJoyGetCurrentStates(tCtrlJoyInfo *joyInfo) { return 0; }
 
         screen = (self.engine / "src/libs/tgfclient/guiscreen.cpp").read_text()
         self.assertIn("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)", screen)
+        self.assertNotIn("} else SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);", screen)
+        self.assertIn("else {\n#ifndef SD_PHONE_UPSTREAM_MAIN", screen)
         self.assertIn("GfScrResizable = false;", screen)
         self.assertIn("GLContext = NULL;", screen)
         self.assertIn("#ifndef SD_PHONE_UPSTREAM_MAIN", screen)

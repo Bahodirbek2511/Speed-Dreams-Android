@@ -325,7 +325,6 @@ def patch_guiscreen(path: Path) -> str:
     function_end = text.find("\nint GfScrGetAttachedDisplays()", function_start)
     require(function_start >= 0 and function_end > function_start,
             "Could not locate gfScrCreateWindow() in guiscreen.cpp")
-    block = text[function_start:function_end]
 
     phone_proto = (
         "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
@@ -339,7 +338,16 @@ def patch_guiscreen(path: Path) -> str:
         text = text[:function_marker.start()] + phone_proto + text[function_marker.start():]
         function_start = text.find("SDL_Surface* gfScrCreateWindow(")
 
-    if "SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);" in block:
+    # Recompute both offsets after inserting the declaration: the inserted
+    # prototype shifts the function and its end marker by the same amount.
+    function_start = text.find("SDL_Surface* gfScrCreateWindow(")
+    function_end = text.find("\nint GfScrGetAttachedDisplays()", function_start)
+    require(function_start >= 0 and function_end > function_start,
+            "Could not re-locate gfScrCreateWindow() after adding the phone prototype")
+    block = text[function_start:function_end]
+
+    if ("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)" not in block
+            and "SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);" in block):
         open_brace = block.find("{")
         require(open_brace >= 0, "Malformed gfScrCreateWindow()")
         prologue = """
