@@ -208,20 +208,39 @@ if start < 0:
     if "#if !defined(__ANDROID__) // SD phone port: pthread affinity" not in s:
         raise SystemExit("Could not locate pthread_setaffinity_np in linuxspec.cpp")
 else:
+    def matching_brace(source, opening):
+        depth = 0
+        for i in range(opening, len(source)):
+            if source[i] == "{": depth += 1
+            elif source[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+        return -1
+
     brace = s.find("{", start)
     if brace < 0:
         raise SystemExit("Could not locate pthread affinity block opening brace")
-    depth = 0
-    end = -1
-    for i in range(brace, len(s)):
-        if s[i] == "{": depth += 1
-        elif s[i] == "}":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
+    end = matching_brace(s, brace)
     if end < 0:
         raise SystemExit("Could not locate pthread affinity block closing brace")
+    # Keep the associated else branch inside the same preprocessor guard.
+    tail = end
+    while tail < len(s) and s[tail].isspace():
+        tail += 1
+    if s.startswith("else", tail):
+        else_start = tail + len("else")
+        while else_start < len(s) and s[else_start].isspace():
+            else_start += 1
+        if else_start < len(s) and s[else_start] == "{":
+            end = matching_brace(s, else_start)
+            if end < 0:
+                raise SystemExit("Could not locate pthread affinity else block closing brace")
+        else:
+            semicolon = s.find(";", else_start)
+            if semicolon < 0:
+                raise SystemExit("Could not locate pthread affinity else statement end")
+            end = semicolon + 1
     s = s[:start] + "#if !defined(__ANDROID__) // SD phone port: pthread affinity\n" + s[start:end] + "\n#endif\n" + s[end:]
     p.write_text(s)
 PY
