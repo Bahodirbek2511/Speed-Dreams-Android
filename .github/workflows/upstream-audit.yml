@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/upstream-audit.yml"
       - "scripts/**"
+      - "phone-port/**"
       - "docs/**"
       - "README.md"
   schedule:
@@ -16,6 +17,23 @@ permissions:
   contents: read
 
 jobs:
+  phone-backend-tests:
+    name: Test phone input and integration patch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out porting workspace
+        uses: actions/checkout@v4
+
+      - name: Compile and test multi-touch controls
+        run: bash phone-port/tests/run_tests.sh
+
+      - name: Validate patcher syntax
+        run: python3 -m py_compile phone-port/tools/apply_phone_port.py phone-port/tests/test_apply_phone_port.py
+
+      - name: Test phone integration patch on isolated fixtures
+        run: python3 phone-port/tests/test_apply_phone_port.py
+
   audit:
     name: Inspect engine portability and Android phone gaps
     runs-on: ubuntu-24.04
