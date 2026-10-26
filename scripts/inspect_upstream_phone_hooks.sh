@@ -148,5 +148,16 @@ echo "## Game renderer swap call sites"
 echo
 grep -R -n --include='*.cpp' --include='*.c' 'GfuiSwapBuffers[[:space:]]*\\(|SDL_GL_SwapWindow[[:space:]]*(' "$WORK/engine/src/modules/graphic" "$WORK/engine/src/modules/userinterface" 2>/dev/null | head -100 || true
 
+echo
+echo "## Full non-resizable SDL screen init"
+sed -n '320,470p' "$WORK/engine/src/libs/tgfclient/guiscreen.cpp" || true
+echo
+echo "## Full resizable SDL screen init"
+sed -n '1035,1160p' "$WORK/engine/src/libs/tgfclient/guiscreen.cpp" || true
+echo
+echo "## GUI screen show and swap functions"
+sed -n '735,805p' "$WORK/engine/src/libs/tgfclient/guiscreen.cpp" || true
+sed -n '1340,1370p' "$WORK/engine/src/libs/tgfclient/gui.cpp" || true
+
 cat "$REPORT"
 
