@@ -182,5 +182,10 @@ echo "## Race control defaults"
 grep -n -A15 -B8 'CMD_LEFTSTEER\\|CMD_THROTTLE\\|CMD_BRAKE\\|CMD_UP_SHFT\\|CMD_DN_SHFT' \
   "$WORK/engine/src/libs/robottools/rthumandriver.cpp" | head -120 || true
 
+echo
+echo "## Joystick creation and presence"
+grep -n -A70 -B8 -E 'GfctrlJoyIsAnyPresent|GfctrlJoyCreate|GfctrlJoyNumber' \
+  "$WORK/engine/src/libs/tgfclient/control.cpp" | head -220 || true
+
 cat "$REPORT"
 
