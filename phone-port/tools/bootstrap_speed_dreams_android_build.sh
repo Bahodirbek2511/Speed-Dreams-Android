@@ -147,6 +147,18 @@ elif const_line in ms:
 elif new_line not in ms:
     raise SystemExit("Unexpected PLIB MDL texture loader; refusing unsafe patch")
 mdl.write_text(ms)
+
+# PLIB's legacy parser returns a writable pointer from strchr(), although
+# this helper only searches an input buffer and does not mutate it.
+parser = p.parent / "ssgParser.cxx"
+ps = parser.read_text()
+old_return = "return strchr( string, c );"
+new_return = "return (char *)strchr( string, c );"
+if old_return in ps:
+    ps = ps.replace(old_return, new_return, 1)
+elif new_return not in ps:
+    raise SystemExit("Unexpected PLIB ssgParser.cxx layout; refusing unsafe patch")
+parser.write_text(ps)
 PY
 printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5-rc1.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
