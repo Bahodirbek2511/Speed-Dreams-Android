@@ -50,7 +50,7 @@ def patch_cmake(path: Path) -> str:
             "project declaration")
 
     original_find = "find_package(OpenXR REQUIRED CONFIG)"
-    if original_find in text:
+    if original_find in text and "if(NOT SD_PHONE)\\n    find_package(OpenXR REQUIRED CONFIG)\\nendif()" not in text:
         text = replace_once(text, original_find,
             "if(NOT SD_PHONE)\n    find_package(OpenXR REQUIRED CONFIG)\nendif()",
             "OpenXR find_package")
