@@ -104,6 +104,7 @@ def patch_cmake(path: Path, upstream_main: bool = False) -> str:
         text = replace_once(text, include_marker,
             include_marker + '\nif(SD_PHONE)\n'
             f'    target_include_directories(sdvr PRIVATE {vdir}/phone)\n'
+            '    add_compile_definitions(SD_PHONE=1)\n'
             '    target_compile_definitions(sdvr PRIVATE SD_PHONE=1)\n'
             '    target_compile_definitions(sd_headers INTERFACE SD_PHONE=1)\n'
             'endif()',
@@ -111,7 +112,8 @@ def patch_cmake(path: Path, upstream_main: bool = False) -> str:
     if upstream_main and "SD_PHONE_UPSTREAM_MAIN=1" not in text:
         marker = "    target_compile_definitions(sd_headers INTERFACE SD_PHONE=1)"
         text = replace_once(text, marker,
-            marker + '\n    target_compile_definitions(sdvr PRIVATE SD_PHONE_UPSTREAM_MAIN=1)'
+            marker + '\n    add_compile_definitions(SD_PHONE_UPSTREAM_MAIN=1)'
+            + '\n    target_compile_definitions(sdvr PRIVATE SD_PHONE_UPSTREAM_MAIN=1)'
             + '\n    target_compile_definitions(sd_headers INTERFACE SD_PHONE_UPSTREAM_MAIN=1)',
             "upstream-main phone compatibility definitions")
 
@@ -437,6 +439,86 @@ def patch_gui(path: Path) -> str:
     return text
 
 
+def patch_control(path: Path) -> str:
+    """Expose the touch overlay as the game's primary virtual joystick."""
+    text = read(path)
+
+    def inject(pattern: str, body: str, label: str) -> None:
+        nonlocal text
+        if body.strip() in text:
+            return
+        compiled = re.compile(pattern)
+        text, count = compiled.subn(lambda match: match.group(1) + body, text, count=1)
+        require(count == 1, f"Could not locate {label} in control.cpp")
+
+    inject(
+        r"(int\s+GfctrlJoyIsAnyPresent\s*\(void\)\s*\{\s*)",
+        "\n#ifdef SD_PHONE_UPSTREAM_MAIN\n    return GFCTRL_JOY_PRESENT;\n#endif\n",
+        "GfctrlJoyIsAnyPresent()")
+    inject(
+        r"(int\s+GfctrlJoyNumber\s*\(void\)\s*\{\s*)",
+        "\n#ifdef SD_PHONE_UPSTREAM_MAIN\n    return 1;\n#endif\n",
+        "GfctrlJoyNumber()")
+    inject(
+        r"(std::string\s*&\s*GfctrlJoyName\s*\(\s*int\s+joy\s*\)\s*\{\s*)",
+        '\n#ifdef SD_PHONE_UPSTREAM_MAIN\n'
+        '    static std::string phoneControlsName = "Touch Controls";\n'
+        '    if (joy == 0) return phoneControlsName;\n'
+        '#endif\n',
+        "GfctrlJoyName()")
+    read_body = (
+        "\n#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+        "    if (!joyInfo) return -1;\n"
+        "    int phoneButtons = 0;\n"
+        "    float phoneAxes[8] = {};\n"
+        "    if (SDPhoneReadJoystick(&phoneButtons, phoneAxes) != 0) return -1;\n"
+        "    const unsigned int previousButtons = static_cast<unsigned int>(joyInfo->oldb[0]);\n"
+        "    for (int i = 0; i < GFCTRL_JOY_MAX_AXES * GFCTRL_JOY_NUMBER; ++i)\n"
+        "        joyInfo->ax[i] = 0.0f;\n"
+        "    for (int i = 0; i < GFCTRL_JOY_MAX_BUTTONS * GFCTRL_JOY_NUMBER; ++i) {\n"
+        "        joyInfo->edgeup[i] = 0;\n"
+        "        joyInfo->edgedn[i] = 0;\n"
+        "        joyInfo->levelup[i] = 0;\n"
+        "    }\n"
+        "    for (int i = 1; i < GFCTRL_JOY_NUMBER; ++i) joyInfo->oldb[i] = 0;\n"
+        "    for (int i = 0; i < GFCTRL_JOY_MAX_AXES && i < 8; ++i)\n"
+        "        joyInfo->ax[i] = phoneAxes[i];\n"
+        "    const unsigned int currentButtons = static_cast<unsigned int>(phoneButtons);\n"
+        "    for (int i = 0; i < GFCTRL_JOY_MAX_BUTTONS; ++i) {\n"
+        "        const unsigned int mask = 1u << i;\n"
+        "        const bool isPressed = (currentButtons & mask) != 0;\n"
+        "        const bool wasPressed = (previousButtons & mask) != 0;\n"
+        "        joyInfo->edgeup[i] = isPressed && !wasPressed ? 1 : 0;\n"
+        "        joyInfo->edgedn[i] = !isPressed && wasPressed ? 1 : 0;\n"
+        "        joyInfo->levelup[i] = isPressed ? 1 : 0;\n"
+        "    }\n"
+        "    joyInfo->oldb[0] = phoneButtons;\n"
+        "    return 0;\n"
+        "#endif\n"
+    )
+    inject(
+        r"(GfctrlJoyGetCurrentStates\s*\(\s*tCtrlJoyInfo\s*\*joyInfo\s*\)\s*\{\s*)",
+        read_body,
+        "GfctrlJoyGetCurrentStates()")
+
+    proto = (
+        "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+        'extern "C" int SDPhoneReadJoystick(int* buttons, float* axes);\n'
+        "#endif\n\n"
+    )
+    if 'extern "C" int SDPhoneReadJoystick(int* buttons, float* axes);' not in text:
+        # Place the declaration near the joystick API to avoid a global
+        # dependency on VR headers in the upstream tgfclient target.
+        marker = re.search(r"(?m)^\s*GfctrlJoyGetCurrentStates\s*\(", text)
+        require(marker is not None, "Could not find a joystick API declaration point")
+        text = text[:marker.start()] + proto + text[marker.start():]
+
+    require("SDPhoneReadJoystick(&phoneButtons, phoneAxes)" in text,
+            "Phone joystick state was not connected to the engine")
+    return text
+
+
+
 def apply(reference_root: Path, engine_root: Path) -> list[str]:
     require(reference_root.is_dir(), f"Reference checkout is missing: {reference_root}")
     require(engine_root.is_dir(), f"Engine checkout is missing: {engine_root}")
@@ -467,11 +549,14 @@ def apply(reference_root: Path, engine_root: Path) -> list[str]:
     if upstream_main:
         screen_path = engine_root / "src/libs/tgfclient/guiscreen.cpp"
         gui_path = engine_root / "src/libs/tgfclient/gui.cpp"
+        control_path = engine_root / "src/libs/tgfclient/control.cpp"
         require(screen_path.is_file(), "Public upstream source lacks src/libs/tgfclient/guiscreen.cpp")
         require(gui_path.is_file(), "Public upstream source lacks src/libs/tgfclient/gui.cpp")
+        require(control_path.is_file(), "Public upstream source lacks src/libs/tgfclient/control.cpp")
         patches.extend([
             (screen_path, patch_guiscreen),
             (gui_path, patch_gui),
+            (control_path, patch_control),
         ])
     replacements = [(path, patcher(path)) for path, patcher in patches]
     changed = []
