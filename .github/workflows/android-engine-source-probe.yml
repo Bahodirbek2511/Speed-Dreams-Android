@@ -1,0 +1,37 @@
+name: Android engine source availability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/probe_android_engine_inputs.sh"
+      - ".github/workflows/android-engine-source-probe.yml"
+  pull_request:
+    paths:
+      - "scripts/probe_android_engine_inputs.sh"
+      - ".github/workflows/android-engine-source-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-probe:
+    name: Verify Android engine and game-data refs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out porting workspace
+        uses: actions/checkout@v4
+
+      - name: Probe engine source expected by the Android port
+        run: bash scripts/probe_android_engine_inputs.sh reports/android-engine-source-probe.md
+
+      - name: Upload source probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-engine-source-probe
+          path: reports/android-engine-source-probe.md
+          if-no-files-found: warn
+          retention-days: 14
