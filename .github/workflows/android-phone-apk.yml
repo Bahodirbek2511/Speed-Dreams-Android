@@ -51,6 +51,21 @@ jobs:
           test -s "$VR/stage/SpeedDreamsVR/data/config/raceman.xml" || \
             find "$VR/stage/SpeedDreamsVR" -maxdepth 3 -type f | head -30
 
+      - name: Create CI debug signing keystore
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          if [[ ! -s "$HOME/.android/debug.keystore" ]]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          test -s "$HOME/.android/debug.keystore"
+
       - name: Build release APK with game data bundled
         run: |
           set -euo pipefail
