@@ -256,6 +256,21 @@ if ! cmp -s "$UTF8PROC_HEADER" "$TGFDATA_HEADER"; then
 fi
 echo "Staged pinned utf8proc.h into tgfdata's existing include directory"
 
+# Upstream grSky.cpp uses std::exp but currently relies on transitive math
+# includes; Android NDK Clang does not guarantee that exposure. Include <cmath>
+# explicitly so std::exp is declared by the standard C++ header.
+python3 - "$ENGINE/src/modules/graphic/ssggraph/grSky.cpp" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text(encoding="utf-8")
+if "std::exp(" not in s:
+    raise SystemExit("Unexpected grSky.cpp layout; std::exp call missing")
+if "#include <cmath>" not in s:
+    s = "#include <cmath>\n" + s
+    p.write_text(s, encoding="utf-8", newline="\n")
+PY
+
 # Android NDK does not expose glibc's pthread_setaffinity_np(). CPU affinity
 # is an optional desktop optimization; skip that block on Android.
 python3 - "$ENGINE/src/libs/tgf/linuxspec.cpp" <<'PY'
