@@ -32,7 +32,7 @@ jobs:
           packages: 'platform-tools'
 
       - name: Install pinned Android NDK and CMake
-        run: sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
+        run: sdkmanager --install "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Run phone-port regression tests
         run: |
@@ -86,7 +86,7 @@ jobs:
           set -euo pipefail
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          BT_DIR="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          BT_DIR="$SDK_ROOT/build-tools/35.0.0"
           test -s "$HOME/.android/debug.keystore"
           # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
@@ -115,7 +115,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           test -n "$SDK_ROOT"
-          BT_DIR="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          BT_DIR="$SDK_ROOT/build-tools/35.0.0"
           test -x "$BT_DIR/apksigner"
           test -x "$BT_DIR/aapt"
           test -x "$BT_DIR/zipalign"
