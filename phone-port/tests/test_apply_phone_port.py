@@ -209,6 +209,24 @@ void GfuiSwapBuffers(void)
     SDL_GL_SwapWindow(GfuiWindow);
 }
 """)
+        self._write(self.engine / "src/libs/tgfclient/control.cpp", """#include <string>
+#define GFCTRL_JOY_PRESENT 1
+#define GFCTRL_JOY_NUMBER 8
+#define GFCTRL_JOY_MAX_BUTTONS 32
+#define GFCTRL_JOY_MAX_AXES 12
+typedef struct {
+    int oldb[GFCTRL_JOY_NUMBER];
+    float ax[GFCTRL_JOY_MAX_AXES * GFCTRL_JOY_NUMBER];
+    int edgeup[GFCTRL_JOY_MAX_BUTTONS * GFCTRL_JOY_NUMBER];
+    int edgedn[GFCTRL_JOY_MAX_BUTTONS * GFCTRL_JOY_NUMBER];
+    int levelup[GFCTRL_JOY_MAX_BUTTONS * GFCTRL_JOY_NUMBER];
+} tCtrlJoyInfo;
+int gfctrlJoyPresent = 0;
+std::string& GfctrlJoyName(int joy) { static std::string name = "none"; return name; }
+int GfctrlJoyIsAnyPresent(void) { return gfctrlJoyPresent; }
+int GfctrlJoyNumber(void) { return gfctrlJoyPresent; }
+int GfctrlJoyGetCurrentStates(tCtrlJoyInfo *joyInfo) { return 0; }
+""")
 
         changed = phone_port.apply(self.reference, self.engine)
         self.assertGreater(len(changed), 0)
@@ -232,7 +250,13 @@ void GfuiSwapBuffers(void)
         self.assertIn("SDPhoneUpdateInput(1);", race)
         self.assertIn("SD_PHONE_UPSTREAM_MAIN", race)
 
-        # All injected screen, GUI, and race changes must be idempotent.
+        control = (self.engine / "src/libs/tgfclient/control.cpp").read_text()
+        self.assertIn("SDPhoneReadJoystick(&phoneButtons, phoneAxes)", control)
+        self.assertIn("return GFCTRL_JOY_PRESENT;", control)
+        self.assertIn("return 1;", control)
+        self.assertIn('static std::string phoneControlsName = "Touch Controls";', control)
+
+        # All injected screen, GUI, joystick and race changes must be idempotent.
         self.assertEqual(phone_port.apply(self.reference, self.engine), [])
 
 
