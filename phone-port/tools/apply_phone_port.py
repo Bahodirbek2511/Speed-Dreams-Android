@@ -536,10 +536,10 @@ def patch_sd_cmake(path: Path) -> str:
     text = read(path)
     old = "        list(APPEND srcs ${dir}/${f})"
     new = (
-        "        if(EXISTS \"${dir}/${f}\")\\n"
-        "            list(APPEND srcs ${dir}/${f})\\n"
-        "        else()\\n"
-        "            message(WARNING \"Skipping unavailable upstream source: ${dir}/${f}\")\\n"
+        "        if(EXISTS \"${dir}/${f}\")\n"
+        "            list(APPEND srcs ${dir}/${f})\n"
+        "        else()\n"
+        "            message(WARNING \"Skipping unavailable upstream source: ${dir}/${f}\")\n"
         "        endif()"
     )
     if "Skipping unavailable upstream source:" not in text and text.count(old) == 2:
