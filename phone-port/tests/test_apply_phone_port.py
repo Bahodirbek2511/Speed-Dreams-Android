@@ -153,5 +153,88 @@ public class SDVRLib {
         self.assertEqual(phone_port.apply(self.reference, self.engine), [])
 
 
+    def test_patch_public_upstream_main_uses_phone_egl_and_sdl_events(self):
+        # The public upstream main branch has no VrRaceEyeBegin hooks; its GUI
+        # has SDL screen setup and a mono rmRedisplay callback instead.
+        self._write(self.engine / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp", """static void rmRedisplay() {
+    GfuiSwapBuffers();
+}
+""")
+        self._write(self.engine / "src/libs/tgfclient/guiscreen.cpp", """#include <SDL.h>
+SDL_Window* GfuiWindow = nullptr;
+static SDL_GLContext GLContext = nullptr;
+SDL_Surface* PScreenSurface = nullptr;
+bool GfScrResizable = true;
+
+SDL_Surface* gfScrCreateWindow(int nWinWidth, int nWinHeight, int nTotalDepth, int bfVideoMode)
+{
+    GfuiWindow = SDL_CreateWindow("game", 0, 0, nWinWidth, nWinHeight,
+        SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);
+
+    /* Create OpenGL context */
+    if (!(GLContext = SDL_GL_CreateContext(GfuiWindow)))
+    {
+        GfLogError("SDL_GL_CreateContext failed");
+        return nullptr;
+    }
+
+    // If specified, try best possible settings.
+    PScreenSurface = SDL_CreateRGBSurface(0, nWinWidth, nWinHeight, nTotalDepth, 0, 0, 0, 0);
+    return PScreenSurface;
+}
+
+int GfScrGetAttachedDisplays() { return 1; }
+
+bool GfScrInit(int nWinWidth, int nWinHeight, int nFullScreen)
+{
+    GfScrResizable = GfScrGetResizable();
+    return GfScrInitSDL2(nWinWidth, nWinHeight, nFullScreen);
+}
+
+void GfScrShutdown(void)
+{
+    SDL_GL_MakeCurrent(GfuiWindow, GLContext);
+    SDL_GL_DeleteContext(GLContext);
+    GLContext = NULL;
+}
+""")
+        self._write(self.engine / "src/libs/tgfclient/gui.cpp", """void GfuiRedraw(void) {}
+void GfuiDisplay(void)
+{
+    GfuiRedraw();
+    GfuiSwapBuffers();
+}
+void GfuiSwapBuffers(void)
+{
+    SDL_GL_SwapWindow(GfuiWindow);
+}
+""")
+
+        changed = phone_port.apply(self.reference, self.engine)
+        self.assertGreater(len(changed), 0)
+
+        cmake = (self.reference / "CMakeLists.txt").read_text()
+        self.assertIn("SD_PHONE_UPSTREAM_MAIN=1", cmake)
+
+        screen = (self.engine / "src/libs/tgfclient/guiscreen.cpp").read_text()
+        self.assertIn("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)", screen)
+        self.assertIn("GfScrResizable = false;", screen)
+        self.assertIn("GLContext = NULL;", screen)
+        self.assertIn("#ifndef SD_PHONE_UPSTREAM_MAIN", screen)
+
+        gui = (self.engine / "src/libs/tgfclient/gui.cpp").read_text()
+        self.assertIn("SDPhoneUpdateInput(0);", gui)
+        self.assertIn("SDPhoneDrawControls(phoneWidth, phoneHeight);", gui)
+        self.assertIn("SDPhonePresent();", gui)
+        self.assertIn("SDL_GL_SwapWindow(GfuiWindow);", gui)
+
+        race = (self.engine / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp").read_text()
+        self.assertIn("SDPhoneUpdateInput(1);", race)
+        self.assertIn("SD_PHONE_UPSTREAM_MAIN", race)
+
+        # All injected screen, GUI, and race changes must be idempotent.
+        self.assertEqual(phone_port.apply(self.reference, self.engine), [])
+
+
 if __name__ == "__main__":
     unittest.main()
