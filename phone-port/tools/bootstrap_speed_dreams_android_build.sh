@@ -196,53 +196,38 @@ done
 python3 "$ROOT/phone-port/tools/apply_phone_port.py" \
     --reference-root "$VR" --engine-root "$ENGINE"
 
-# The current upstream engine requires utf8proc for Unicode-safe driver names.
-# Build the pinned dependency as part of the same Android CMake graph so both
-# its header and the utf8proc::utf8proc target are available to tgfdata.
-python3 - "$ENGINE/src/libs/tgfdata/CMakeLists.txt" "$VR/third_party/utf8proc" <<'PY'
+# SpeedDreams-VR builds engine sources through cmake/sd.cmake rather than the
+# upstream engine's own CMakeLists. Declare utf8proc in the active VR project and
+# link it directly into libsdvr.so so drivers.cpp's utf8proc symbols are resolved.
+python3 - "$VR/CMakeLists.txt" "$VR/third_party/utf8proc" <<'PY'
 from pathlib import Path
 import sys
-cmake = Path(sys.argv[1])
-utf8proc = Path(sys.argv[2]).resolve()
-text = cmake.read_text(encoding="utf-8")
-find_line = "find_package(utf8proc REQUIRED)"
-add_line = f'add_subdirectory("{utf8proc.as_posix()}" "${{CMAKE_BINARY_DIR}}/utf8proc")'
-alias_block = (
-    "if(NOT TARGET utf8proc::utf8proc)\n"
-    "    add_library(utf8proc::utf8proc ALIAS utf8proc)\n"
-    "endif()"
-)
-if find_line in text:
-    text = text.replace(find_line, add_line, 1)
-elif add_line not in text:
-    raise SystemExit("Unexpected tgfdata CMake file: utf8proc dependency hook missing")
-if alias_block not in text:
-    text = text.replace(add_line, add_line + "\n" + alias_block, 1)
-# Ensure the public header include path is passed to tgfdata even when the
-# project helper does not propagate imported/alias target usage requirements.
-include_line = f'target_include_directories(tgfdata PRIVATE "{utf8proc.as_posix()}")'
-if include_line not in text:
-    link_line = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient utf8proc::utf8proc)"
-    if link_line not in text and "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)" in text:
-        text = text.replace(
-            "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)",
-            link_line, 1)
-    text += "\n" + include_line + "\n"
 
-if "utf8proc::utf8proc" not in text:
-    old_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)"
-    new_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient utf8proc::utf8proc)"
-    if old_link not in text:
-        raise SystemExit("Could not locate tgfdata link list for utf8proc")
-    text = text.replace(old_link, new_link, 1)
-# The engine's legacy ADD_SDLIB_LIBRARY helper does not propagate this
-# static dependency to libsdvr.so's final link. Explicit PUBLIC linkage makes
-# utf8proc's implementation available to all tgfdata consumers.
-public_link = "target_link_libraries(tgfdata PUBLIC utf8proc)"
-if public_link not in text:
-    text += "\n" + public_link + "\n"
-cmake.write_text(text, encoding="utf-8", newline="\n")
-print("Configured pinned utf8proc source for the Android tgfdata target")
+root = Path(sys.argv[1])
+utf8proc = Path(sys.argv[2]).resolve()
+text = root.read_text(encoding="utf-8")
+dollar = chr(36)
+subdir_line = f'    add_subdirectory("{utf8proc.as_posix()}" "{dollar}{{CMAKE_BINARY_DIR}}/utf8proc")'
+setup = (
+    "if(SD_PHONE)\n"
+    + subdir_line + "\n"
+    "    if(NOT TARGET utf8proc::utf8proc)\n"
+    "        add_library(utf8proc::utf8proc ALIAS utf8proc)\n"
+    "    endif()\n"
+    "endif()\n\n"
+)
+marker = "include(cmake/sd.cmake)"
+if setup not in text:
+    if text.count(marker) != 1:
+        raise SystemExit("Could not find the active SpeedDreams-VR sd.cmake include")
+    text = text.replace(marker, setup + marker, 1)
+link = "if(SD_PHONE)\n    target_link_libraries(sdvr PRIVATE utf8proc)\nendif()"
+if link not in text:
+    if text.count(marker) != 1:
+        raise SystemExit("Could not locate the post-library CMake insertion point")
+    text = text.replace(marker, marker + "\n\n" + link, 1)
+root.write_text(text, encoding="utf-8", newline="\n")
+print("Configured utf8proc in the active SpeedDreams-VR CMake graph and linked it to sdvr")
 PY
 
 # The Android engine's own include list reliably contains src/libs/tgfdata,
