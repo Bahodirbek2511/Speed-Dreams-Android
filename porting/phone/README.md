@@ -1,6 +1,6 @@
-# Flat-screen Android input contract
+# Flat-screen Android input backend
 
-This directory contains the first native component intended for the non-VR Speed Dreams Android port. It is platform-neutral C++ so it can be unit-tested on CI without pretending that an Android game build has succeeded.
+This directory contains the first native components intended for the non-VR Speed Dreams Android port. They are platform-neutral C++ so the input and legacy GUI-event contract can be verified on CI without pretending that an Android game build has succeeded.
 
 ## Input mapping
 
@@ -16,19 +16,19 @@ This directory contains the first native component intended for the non-VR Speed
 | ASR | button bit 5 |
 | Camera / pause / confirm / cancel | reserved button bits 6-9 |
 
-SDPhoneInputRead(0, ...) exposes the virtual joystick layout used by the Android VR engine port, without linking the phone input state to OpenXR.
-
-Menu pointer events are queued in normalized coordinates and converted to pixels using the latest viewport size. The queue is protected because Android UI input and the engine loop run on different threads.
+`VrJoyRead(0, ...)` now adapts the phone's synchronized virtual-joystick state to the legacy input hook used by the Android engine reference. `SDPhoneInputPumpEvents()` converts queued tap, drag, release and cancel gestures into the GUI event ABI represented by `vr_events.h`, without importing OpenXR.
 
 ## Current integration status
 
-- [x] Native, thread-safe steering/pedal/button state.
-- [x] Normalized touch-to-pixel menu event queue.
-- [x] Host-side unit tests.
+- [x] Thread-safe steering/pedal/button state with finite-value clamping and steering deadzone.
+- [x] Normalized touch-to-pixel menu events with bounded queue.
+- [x] Engine-compatible virtual joystick adapter.
+- [x] Mouse motion/down/up event translation for the legacy menu event loop.
+- [x] CI host compilation and unit tests.
 - [ ] JNI bridge and on-screen control view.
-- [ ] Route queued touch events into the Speed Dreams GUI event loop.
-- [ ] Add a mono EGL/GLES frame loop and replace OpenXR lifecycle calls.
-- [ ] Build the full engine and game data into an ARM64 phone APK.
-- [ ] Install and complete a race on Redmi A1+.
+- [ ] Call the event pump from the phone-only native frame/event loop.
+- [ ] Add a mono EGL/GLES lifecycle and remove OpenXR from the native startup path.
+- [ ] Reproduce pinned engine/data/dependency checkouts and compile the full ARM64 engine.
+- [ ] Package a real APK, inspect it, and test a complete race on Redmi A1+.
 
-Passing these unit tests validates only the input contract. It is not an Android APK build and does not establish gameplay or device compatibility.
+Passing the C++ tests validates only the input contract and adapter. It is not an Android APK build and does not establish gameplay or device compatibility.
