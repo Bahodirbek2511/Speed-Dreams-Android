@@ -104,9 +104,12 @@ jobs:
             --out "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
             "$APK"
           # Require the modern v2 signature; v1 is not an install requirement for API 29+.
-          "$BT_DIR/apksigner" verify --verbose \
+          # Override the verification floor to API 21 to verify the actual v1
+          # JAR signature as well; the APK manifest minSdk remains 29.
+          "$BT_DIR/apksigner" verify --verbose --min-sdk-version 21 \
             "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
             | tee "$RUNNER_TEMP/preflight-apksigner-verify.txt"
+          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
           mv "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" "$APK"
 
@@ -139,9 +142,14 @@ jobs:
           grep -Fq "'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
 
-          # Recheck the modern v2 signature. Never edit the APK after this step.
+          # Verify the app for its declared minSdk (29): v2 must be accepted there.
           "$BT_DIR/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner-verify.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apksigner-verify.txt"
+          # Separately check the APK's v1 JAR signature on an API level where v1
+          # is applicable. This does not lower the APK manifest's minSdkVersion.
+          "$BT_DIR/apksigner" verify --verbose --min-sdk-version 21 "$APK" | tee "$RUNNER_TEMP/apksigner-legacy-verify.txt"
+          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apksigner-legacy-verify.txt"
+          grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apksigner-legacy-verify.txt"
           "$BT_DIR/zipalign" -c -v 4 "$APK" > "$RUNNER_TEMP/zipalign-check.txt"
 
           unzip -p "$APK" AndroidManifest.xml > "$RUNNER_TEMP/AndroidManifest.bin"
