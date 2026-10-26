@@ -109,7 +109,7 @@ def patch_cmake(path: Path) -> str:
             'endif()',
             "Speed Dreams module CMake include")
 
-    if "OpenXR::openxr_loader" in text:
+    if "OpenXR::openxr_loader" in text and "SDVR_OPTIONAL_LIBS" not in text:
         text = replace_once(text, "target_link_libraries(sdvr PRIVATE",
             "set(SDVR_OPTIONAL_LIBS)\n"
             "if(NOT SD_PHONE)\n"
