@@ -377,12 +377,12 @@ def patch_guiscreen(path: Path) -> str:
         # Preserve the upstream if/else braces; only disable the fullscreen call on phones.
         # Match the upstream line by syntax, not exact whitespace.
         fullscreen_else_re = re.compile(
-            r"(?m)^(\\s*})\\s*else\\s+SDL_SetWindowFullscreen\\(GfuiWindow,\\s*SDL_WINDOW_FULLSCREEN\\);"
+            r"(?m)^([ \t]*})[ \t]*else[ \t]+SDL_SetWindowFullscreen\(GfuiWindow,[ \t]*SDL_WINDOW_FULLSCREEN\);"
         )
         block, count = fullscreen_else_re.subn(
-            r"\\1 else {\\n#ifndef SD_PHONE_UPSTREAM_MAIN\\n"
-            r"        SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);\\n"
-            r"#endif\\n    }",
+            lambda match: match.group(1) + " else {\n#ifndef SD_PHONE_UPSTREAM_MAIN\n"
+            "        SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);\n"
+            "#endif\n    }",
             block, count=1)
         require(count == 1,
                 "Could not patch the upstream fullscreen else branch")
