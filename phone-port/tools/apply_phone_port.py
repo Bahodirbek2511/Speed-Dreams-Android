@@ -174,7 +174,7 @@ def patch_gradle(path: Path) -> str:
     has_v2 = "v2SigningEnabled true" in text
     if not has_v1 and not has_v2:
         text = replace_once(text, "keyPassword 'android'",
-            "keyPassword 'android'\\n            v1SigningEnabled true\\n            v2SigningEnabled true",
+            "keyPassword 'android'\n            v1SigningEnabled true\n            v2SigningEnabled true",
             "v1/v2 APK signing settings")
     elif not (has_v1 and has_v2):
         raise PortError("Only one of the required v1/v2 signing settings is present")
