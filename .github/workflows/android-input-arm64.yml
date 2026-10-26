@@ -27,7 +27,7 @@ jobs:
       - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: platform-tools platforms;android-31
 
       - name: Install pinned NDK and CMake
         run: sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
@@ -42,6 +42,15 @@ jobs:
 
       - name: Build JNI shared library
         run: cmake --build build/phone-android-arm64 --parallel 2
+
+      - name: Compile Android touch UI Java classes
+        run: |
+          mkdir -p build/phone-android-java
+          javac -source 17 -target 17 \
+            -classpath "$ANDROID_HOME/platforms/android-31/android.jar" \
+            -d build/phone-android-java \
+            porting/phone/android/src/main/java/com/speeddreamsphone/PhoneNative.java \
+            porting/phone/android/src/main/java/com/speeddreamsphone/PhoneControlsView.java
 
       - name: Inspect ABI and required exported symbols
         run: |
