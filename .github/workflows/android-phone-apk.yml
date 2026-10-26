@@ -55,6 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           VR="$RUNNER_TEMP/sd-port-build/SpeedDreams-VR"
+          chmod +x "$VR/android/gradlew"
           python3 "$VR/tools/make_release.py"
           APK="$VR/android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
