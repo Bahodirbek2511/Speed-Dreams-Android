@@ -19,13 +19,24 @@ clone_pinned() {
         local actual
         actual="$(git -C "$dest" rev-parse HEAD)"
         echo "EXISTING $dest $actual"
-        if ! git -C "$dest" describe --exact-match --tags HEAD 2>/dev/null | grep -Fxq "$ref"; then
+        if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+            if [[ "$actual" != "$ref" ]]; then
+                echo "Existing checkout at $dest is $actual, expected pinned commit $ref; refusing to modify it." >&2
+                return 2
+            fi
+        elif ! git -C "$dest" describe --exact-match --tags HEAD 2>/dev/null | grep -Fxq "$ref"; then
             echo "Existing checkout at $dest is not exactly at expected tag $ref; refusing to modify it." >&2
             return 2
         fi
     else
         mkdir -p "$(dirname "$dest")"
-        git -c advice.detachedHead=false clone --depth 1 --single-branch --branch "$ref" "$url" "$dest"
+        if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+            git clone --no-checkout --filter=blob:none "$url" "$dest"
+            git -C "$dest" fetch --depth 1 origin "$ref"
+            git -C "$dest" checkout --detach "$ref"
+        else
+            git -c advice.detachedHead=false clone --depth 1 --single-branch --branch "$ref" "$url" "$dest"
+        fi
     fi
     if [[ ! -e "$dest/$marker" ]]; then
         echo "Missing expected file after checkout: $dest/$marker" >&2
@@ -65,7 +76,7 @@ for item in \
     "curl|https://github.com/curl/curl.git|curl-8_6_0|CMakeLists.txt" \
     "cJSON|https://github.com/DaveGamble/cJSON.git|v1.7.18|cJSON.c" \
     "rhash|https://github.com/rhash/RHash.git|v1.4.5|librhash/rhash.h" \
-    "gl4es|https://github.com/ptitSeb/gl4es.git|v1.1.5|include/gl4esinit.h" \
+    "gl4es|https://github.com/ptitSeb/gl4es.git|2037865590d410bcd7b8d1f22b841472ed6d39ac|include/gl4esinit.h" \
     "openal-soft|https://github.com/kcat/openal-soft.git|1.23.1|CMakeLists.txt"; do
     IFS='|' read -r name url ref marker <<< "$item"
     clone_pinned "$TP/$name" "$url" "$ref" "$marker"
