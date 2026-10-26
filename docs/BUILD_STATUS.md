@@ -4,48 +4,35 @@ Last reviewed: 2026-10-26
 
 ## Current result
 
-- Complete Redmi-compatible game APK: **not built**
-- Complete Speed Dreams Android native engine build: **blocked / not run**
-- Android ARM64 input/JNI library: **PASS** — [build and inspection](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40301485253)
-- JNI library artifact from the earlier validated build: [libsdphoneinput.so and symbol report](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664/artifacts/12640157250)
-- Android Java touch UI classes compiled against API 31: **PASS** — run [40301485253](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40301485253)
-- Host input tests including touch-queue overflow, stuck-key and mouse-button recovery: **PASS** — [run 40301485587](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40301485587)
-- Patcher fixture tests and source audits: **PASS** — [run 40300924001](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300924001)
-- Redmi A1+ install/gameplay/performance test: **not performed**
+- Universal ARM APK containing the native engine modules and bundled game data: **CI build PASS** — [previous build #51](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40350874567).
+- APK ZIP integrity and v2 signature of that previous candidate: **PASS** — independently checked.
+- APK installer compatibility on Redmi A1+: **FAIL on previous candidates**, as reported by the user.
+- Installer-hardening revision: separate application ID, stable development certificate, v1+v2 signatures, dual ARM ABIs, and GLES 2.0 manifest minimum; it is rebuilt and validated by the phone APK workflow after merge.
+- Touch controls and integration patcher fixtures: **PASS** — [test workflow history](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300477268).
+- Redmi A1+ startup, track/race, audio, controls, memory and FPS: **not yet verified on the physical device**.
 
-The input/JNI artifact is a native control library only. It does not contain the Speed Dreams engine, tracks, cars, or a launchable game APK.
+The APK is a real build artifact, not the old input-only shared-library artifact. However, package creation and static validation do not by themselves prove installability or a playable game.
 
-## Confirmed source blocker
+## Confirmed technical fixes in the new candidate
 
-The VR reference CMake project expects a companion Speed Dreams engine checkout on branch `quest-port`. The public Forgejo engine remote responds but does not advertise that branch. The source probe recorded other branches but did not establish that they contain the Android modifications required by the VR reference.
+- The phone app uses application ID `com.speeddreams.mobile`, separate from the upstream VR reference's `com.speeddreamsvr`.
+- Both `arm64-v8a` and `armeabi-v7a` native libraries are included.
+- Gradle is instructed to use v1/JAR and v2/APK signing; a stable **development-only** key prevents each sideload build from receiving a different signing identity.
+- The manifest no longer advertises the VR reference's GLES 3.1 minimum; the phone EGL code explicitly attempts GLES 3 and falls back to GLES 2.
+- CI checks package name/version, min/target SDK, both native ABIs, APK signatures, ZIP alignment, the complete APK ZIP and the bundled game-data ZIP.
 
-- [Required source branch probe](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191)
-- [Public main source compatibility report](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300725640)
-- [SDL screen initialization probe](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40301327530)
+## Source and build provenance
 
-The public engine `main` lacks the expected VR frame hooks. A phone port therefore needs real source changes around `guiscreen.cpp`, GUI frame presentation, and the race render loop, in addition to touch input. Merely removing OpenXR manifest entries is not a valid fix.
+The build workflow checks out the public Speed Dreams engine `main` and the `SpeedDreams-VR v0.10.0-beta` Android reference, applies the repository's phone compatibility patcher, checks out pinned native dependencies, records resolved revisions in `android-source-lock.txt`, builds the native app and packages the game data. The public engine revision is recorded per run because the upstream `main` branch itself is not immutable.
 
-## Verified checks
+The patcher includes compatibility changes for the public engine's GUI/screen initialization and mono race loop. Its fixture tests do not replace a real device test.
 
-| Check | Result |
-|---|---|
-| Desktop source portability audit | PASS |
-| VR-reference phone-gap audit | PASS |
-| Touch input / event queue host tests | PASS |
-| Overflow recovery tests for held keys and mouse buttons | PASS |
-| Patcher tests on isolated fixtures | PASS |
-| Android ARM64 input/JNI library build and exported-symbol inspection | PASS |
-| Android touch UI Java compile | PASS |
-| Full Speed Dreams Android engine build | BLOCKED |
-| Full game APK | NOT CREATED |
-| Redmi A1+ runtime test | NOT RUN |
+## Remaining acceptance gates
 
-## Remaining engineering gates
+1. Install the new signed APK on Redmi A1+ and confirm Package Installer accepts it.
+2. Confirm first-run all-files permission handling and extraction of bundled game data.
+3. Verify the main menu and track load.
+4. Test throttle, brake, steering, camera/pause actions and sound.
+5. Complete a race and record frame rate, memory, crashes and heat.
 
-1. Recover or reimplement a compatible Android engine source revision and pin dependencies.
-2. Integrate a single phone-input implementation into the actual engine event loop.
-3. Implement/verify Android EGL/GLES screen initialization, GUI frame presentation, and mono race rendering against the actual source tree.
-4. Build the complete engine; fix actual compile/link errors.
-5. Package the full game and legally distributable data, inspect APK metadata and libraries, then test a complete race on Redmi A1+.
-
-A source audit and input-library compile do not constitute a playable game build.
+**Playable release APK: not yet verified.** Do not treat a successful CI build as device acceptance.
