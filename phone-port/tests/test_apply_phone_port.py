@@ -140,6 +140,7 @@ public class SDVRLib {
         self.assertNotIn("IMMERSIVE_HMD", manifest)
         activity = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java").read_text()
         self.assertIn("SDVRLib.onTouch(handle", activity)
+        self.assertIn("import android.os.Build;", activity)
         self.assertNotIn("OPENXR_HMD", activity)
         lib = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRLib.java").read_text()
         self.assertIn("native void onTouch", lib)
