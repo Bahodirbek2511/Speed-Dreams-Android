@@ -98,6 +98,41 @@ if [[ ! -f "$PLIB/src/util/ul.cxx" || ! -f "$PLIB/src/sg/sg.cxx" ]]; then
     find "$PLIB" -maxdepth 4 -type f | head -50 >&2 || true
     exit 5
 fi
+
+# The desktop PLIB release probes GLX/X11. Android's OpenXR/EGL backend owns
+# the GL context, so remove the desktop-only GLX dependency from ssg.cxx.
+python3 - "$PLIB/src/ssg/ssg.cxx" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+old_include = """#elif defined(UL_WIN32)
+   /* Nothing */
+#else
+#  include <GL/glx.h>
+#endif"""
+new_include = """#elif defined(UL_WIN32) || defined(__ANDROID__)
+   /* Android uses EGL/OpenXR; no desktop GLX headers. */
+#else
+#  include <GL/glx.h>
+#endif"""
+old_context = """#elif defined(UL_MAC_OSX)
+  return ( CGLGetCurrentContext () != NULL ) ;
+#else
+  return ( glXGetCurrentContext () != NULL ) ;
+#endif"""
+new_context = """#elif defined(UL_MAC_OSX)
+  return ( CGLGetCurrentContext () != NULL ) ;
+#elif defined(__ANDROID__)
+  return true ; /* OpenXR creates and owns the current EGL context. */
+#else
+  return ( glXGetCurrentContext () != NULL ) ;
+#endif"""
+if old_include not in s or old_context not in s:
+    raise SystemExit("Unexpected PLIB ssg.cxx layout; refusing unsafe patch")
+s = s.replace(old_include, new_include, 1).replace(old_context, new_context, 1)
+p.write_text(s)
+PY
 printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5-rc1.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
 for required in \
