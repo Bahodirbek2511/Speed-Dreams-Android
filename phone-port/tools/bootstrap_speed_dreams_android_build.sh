@@ -98,7 +98,7 @@ if [[ ! -f "$PLIB/src/util/ul.cxx" || ! -f "$PLIB/src/sg/sg.cxx" ]]; then
     find "$PLIB" -maxdepth 4 -type f | head -50 >&2 || true
     exit 5
 fi
-printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
+printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5-rc1.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
 for required in \
     "$ENGINE/src/libs/tgf/tgf.h" \
