@@ -7,8 +7,9 @@ CODE_REF="${SPEED_DREAMS_CODE_REF:-quest-port}"
 REPORT="${1:-reports/android-engine-source-probe.md}"
 
 mkdir -p "$(dirname "$REPORT")"
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
+probe="$(mktemp)"
+refs="$(mktemp)"
+trap 'rm -f "$probe" "$refs"' EXIT
 
 {
   echo "# Android engine source probe"
@@ -21,36 +22,77 @@ trap 'rm -f "$tmp"' EXIT
 } > "$REPORT"
 
 echo "Probing engine ref: $CODE_URL ($CODE_REF)"
-if git ls-remote --exit-code --heads "$CODE_URL" "refs/heads/$CODE_REF" >"$tmp" 2>&1; then
-  engine_sha="$(awk 'NR==1 {print $1}' "$tmp")"
+if git ls-remote --exit-code --heads "$CODE_URL" "refs/heads/$CODE_REF" >"$probe" 2>&1; then
+  engine_sha="$(awk 'NR==1 {print $1}' "$probe")"
   {
-    echo "- Engine branch: **FOUND**"
+    echo "- Required engine branch: **FOUND**"
     echo "- Engine commit observed: $engine_sha"
     echo
   } >> "$REPORT"
   echo "FOUND engine ref $CODE_REF at $engine_sha"
 else
-  {
-    echo "- Engine branch: **NOT AVAILABLE** from this runner"
-    echo
-    echo '~~~text'
-    cat "$tmp"
-    echo '~~~'
-    echo
-    echo "The Android reference CMake expects the quest-port source tree. Do not substitute the older GitHub 2.2 snapshot or label it a reproducible Speed Dreams 2.4 build."
-  } >> "$REPORT"
+  probe_rc=$?
+  if git ls-remote --heads "$CODE_URL" >"$refs" 2>&1; then
+    {
+      if [[ -s "$refs" ]]; then
+        echo "- Required engine branch: **MISSING**"
+        echo "- The remote responds, but it does not advertise \`$CODE_REF\`."
+        echo
+        echo "## Branches actually advertised by the engine remote"
+        echo
+        echo '~~~text'
+        sed -E 's/[[:space:]]+refs\/heads\//  /' "$refs" | head -60
+        echo '~~~'
+        echo
+      else
+        echo "- Engine remote: **reachable, but no branches were advertised**"
+        echo
+      fi
+    } >> "$REPORT"
+  else
+    {
+      echo "- Engine remote: **UNREACHABLE or Git transport failed** (exit $probe_rc)"
+      echo
+      echo '~~~text'
+      cat "$refs"
+      echo '~~~'
+      echo
+    } >> "$REPORT"
+  fi
+  echo "Probing game-data remote independently: $DATA_URL"
+  if git ls-remote --heads "$DATA_URL" >"$probe" 2>&1; then
+    {
+      echo "## Data repository refs"
+      echo
+      echo '~~~text'
+      head -30 "$probe"
+      echo '~~~'
+      echo
+    } >> "$REPORT"
+  else
+    {
+      echo "## Data repository refs"
+      echo
+      echo "- Data remote: **UNREACHABLE or no refs**"
+      echo
+      echo '~~~text'
+      cat "$probe"
+      echo '~~~'
+      echo
+    } >> "$REPORT"
+  fi
   cat "$REPORT"
   exit 2
 fi
 
-: > "$tmp"
+: > "$probe"
 echo "Probing game-data repository: $DATA_URL"
-if git ls-remote --heads "$DATA_URL" >"$tmp" 2>&1; then
+if git ls-remote --heads "$DATA_URL" >"$probe" 2>&1; then
   {
     echo "## Data repository refs"
     echo
     echo '~~~text'
-    head -20 "$tmp"
+    head -30 "$probe"
     echo '~~~'
     echo
   } >> "$REPORT"
@@ -58,11 +100,12 @@ else
   {
     echo "## Data repository refs"
     echo
-    echo "- Data refs: **NOT AVAILABLE** from this runner"
+    echo "- Data remote: **UNREACHABLE or no refs**"
     echo
     echo '~~~text'
-    cat "$tmp"
+    cat "$probe"
     echo '~~~'
+    echo
   } >> "$REPORT"
   cat "$REPORT"
   exit 3
