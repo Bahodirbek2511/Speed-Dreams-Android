@@ -373,6 +373,21 @@ def patch_guiscreen(path: Path) -> str:
             "    GLContext = SDL_GL_CreateContext(GfuiWindow);\n"
             "#endif")
         block = block[:context_start] + original_context + block[context_end:]
+
+        # Fullscreen mode selection is desktop-only. Keep its if/else pair
+        # together under one guard so preprocessing cannot leave a dangling else.
+        fullscreen_re = re.compile(
+            r"(?m)^(?P<indent>\\s*)if\\s*\\([^\\n]*\\)\\s*\\{"
+            r"(?:(?!^\\s*\\}).|\\n)*?^\\s*\\}\\s*else\\s+"
+            r"SDL_SetWindowFullscreen\\(GfuiWindow,\\s*SDL_WINDOW_FULLSCREEN\\);",
+            re.DOTALL)
+        if "SD_PHONE_UPSTREAM_MAIN" not in block[block.find("SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN)")-300:block.find("SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN)")+100]:
+            block, fullscreen_count = fullscreen_re.subn(
+                lambda m: "#ifndef SD_PHONE_UPSTREAM_MAIN\\n" + m.group(0) +
+                          "\\n#endif",
+                block, count=1)
+            require(fullscreen_count == 1,
+                    "Could not guard the complete desktop fullscreen if/else block")
         text = text[:function_start] + block + text[function_end:]
 
     resizable_marker = "    GfScrResizable = GfScrGetResizable();"
