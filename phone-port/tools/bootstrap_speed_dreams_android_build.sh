@@ -235,6 +235,12 @@ if "utf8proc::utf8proc" not in text:
     if old_link not in text:
         raise SystemExit("Could not locate tgfdata link list for utf8proc")
     text = text.replace(old_link, new_link, 1)
+# The engine's legacy ADD_SDLIB_LIBRARY helper does not propagate this
+# static dependency to libsdvr.so's final link. Explicit PUBLIC linkage makes
+# utf8proc's implementation available to all tgfdata consumers.
+public_link = "target_link_libraries(tgfdata PUBLIC utf8proc)"
+if public_link not in text:
+    text += "\n" + public_link + "\n"
 cmake.write_text(text, encoding="utf-8", newline="\n")
 print("Configured pinned utf8proc source for the Android tgfdata target")
 PY
