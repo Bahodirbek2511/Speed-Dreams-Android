@@ -196,6 +196,31 @@ done
 python3 "$ROOT/phone-port/tools/apply_phone_port.py" \
     --reference-root "$VR" --engine-root "$ENGINE"
 
+# The current upstream engine requires utf8proc for Unicode-safe driver names.
+# Build the pinned dependency as part of the same Android CMake graph so both
+# its header and the utf8proc::utf8proc target are available to tgfdata.
+python3 - "$ENGINE/src/libs/tgfdata/CMakeLists.txt" "$VR/third_party/utf8proc" <<'PY'
+from pathlib import Path
+import sys
+cmake = Path(sys.argv[1])
+utf8proc = Path(sys.argv[2]).resolve()
+text = cmake.read_text(encoding="utf-8")
+find_line = "find_package(utf8proc REQUIRED)"
+add_line = f'add_subdirectory("{utf8proc.as_posix()}" "${{CMAKE_BINARY_DIR}}/utf8proc")'
+if find_line in text:
+    text = text.replace(find_line, add_line, 1)
+elif add_line not in text:
+    raise SystemExit("Unexpected tgfdata CMake file: utf8proc dependency hook missing")
+if "utf8proc::utf8proc" not in text:
+    old_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient)"
+    new_link = "ADD_SDLIB_LIBRARY(tgfdata portability txml tgf tgfclient utf8proc::utf8proc)"
+    if old_link not in text:
+        raise SystemExit("Could not locate tgfdata link list for utf8proc")
+    text = text.replace(old_link, new_link, 1)
+cmake.write_text(text, encoding="utf-8", newline="\\n")
+print("Configured pinned utf8proc source for the Android tgfdata target")
+PY
+
 # Android NDK does not expose glibc's pthread_setaffinity_np(). CPU affinity
 # is an optional desktop optimization; skip that block on Android.
 python3 - "$ENGINE/src/libs/tgf/linuxspec.cpp" <<'PY'
