@@ -131,5 +131,22 @@ for relative, pattern in targets.items():
 PY
 
 
+echo
+echo "## Race redisplay function"
+echo
+sed -n '315,415p' "$RACE" || true
+echo
+echo "## Screen/window setup and presentation sites"
+echo
+for file in "$WORK/engine/src/libs/tgfclient/guiscreen.cpp" "$WORK/engine/src/libs/tgfclient/gui.cpp"; do
+  [[ -f "$file" ]] || continue
+  echo "### \${file#"$WORK/engine/"}"
+  grep -nE 'GfScrInitSDL2|GfScrShutdown|GfuiWindow|GLContext|SDL_CreateWindow|SDL_GL_CreateContext|GfuiSwapBuffers|SDL_GL_SwapWindow' "$file" | head -100 || true
+done
+echo
+echo "## Game renderer swap call sites"
+echo
+grep -R -n --include='*.cpp' --include='*.c' 'GfuiSwapBuffers[[:space:]]*\\(|SDL_GL_SwapWindow[[:space:]]*(' "$WORK/engine/src/modules/graphic" "$WORK/engine/src/modules/userinterface" 2>/dev/null | head -100 || true
+
 cat "$REPORT"
 
