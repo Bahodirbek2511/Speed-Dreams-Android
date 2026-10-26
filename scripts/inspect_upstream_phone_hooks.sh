@@ -171,5 +171,16 @@ echo
 grep -R -n --include='*.h' -E 'GfctrlJoyGetCurrent|GfctrlJoy|tCtrlJoyInfo' \
   "$WORK/engine/src" 2>/dev/null | head -80 || true
 
+echo
+echo "## Joystick state structure"
+sed -n '735,785p' "$WORK/engine/src/libs/tgfclient/tgfclient.h" || true
+echo
+echo "## Joystick read implementation"
+grep -n -A100 -B15 'GfctrlJoyGetCurrentStates' "$WORK/engine/src/libs/tgfclient/control.cpp" | head -140 || true
+echo
+echo "## Race control defaults"
+grep -n -A15 -B8 'CMD_LEFTSTEER\\|CMD_THROTTLE\\|CMD_BRAKE\\|CMD_UP_SHFT\\|CMD_DN_SHFT' \
+  "$WORK/engine/src/libs/robottools/rthumandriver.cpp" | head -120 || true
+
 cat "$REPORT"
 
