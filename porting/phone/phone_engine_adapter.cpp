@@ -7,10 +7,15 @@
 #include <atomic>
 #include <cstddef>
 #include <mutex>
+#include <unordered_set>
+#include <vector>
 
 namespace {
 
 constexpr std::size_t kEngineEventCapacity = 256;
+/* This phone UI produces only a handful of keys at once. Bounding the set
+   gives overflow recovery room to enqueue a release for every active input. */
+constexpr std::size_t kMaxTrackedKeys = 128;
 
 struct EventQueue {
     std::array<VrEvent, kEngineEventCapacity> items{};
@@ -20,6 +25,7 @@ struct EventQueue {
     int mouse_x = 0;
     int mouse_y = 0;
     int mouse_button_state = 0;
+    std::unordered_set<int> held_keys;
     std::mutex mutex;
 };
 
@@ -31,22 +37,79 @@ EventQueue& queue()
 
 std::atomic<bool> sMenuMousePressed{false};
 
-void push_event_locked(EventQueue& q, const VrEvent& event)
+void append_raw_locked(EventQueue& q, const VrEvent& event)
 {
-    if (q.count == kEngineEventCapacity) {
-        q.head = (q.head + 1) % kEngineEventCapacity;
-        --q.count;
+    if (q.count >= kEngineEventCapacity) {
+        return;
     }
     q.items[q.tail] = event;
     q.tail = (q.tail + 1) % kEngineEventCapacity;
     ++q.count;
 }
 
+/* Discard stale events only after synthesizing release events for input that
+   the engine could already have consumed. This avoids stuck keys/mouse buttons
+   if the GUI loop stalls long enough to fill the bounded queue. */
+void recover_from_overflow_locked(EventQueue& q)
+{
+    std::vector<int> keys(q.held_keys.begin(), q.held_keys.end());
+    const int mouse_buttons = q.mouse_button_state;
+    const int mouse_x = q.mouse_x;
+    const int mouse_y = q.mouse_y;
+
+    q.head = 0;
+    q.tail = 0;
+    q.count = 0;
+    q.held_keys.clear();
+    q.mouse_button_state = 0;
+
+    for (const int key : keys) {
+        append_raw_locked(q, VrEvent{VR_EV_KEY_UP, key, 0, 0, 0});
+    }
+    for (int button = 1; button <= 31; ++button) {
+        const int mask = 1 << (button - 1);
+        if ((mouse_buttons & mask) != 0) {
+            append_raw_locked(q, VrEvent{VR_EV_MOUSE_BUTTON, button, 0, mouse_x, mouse_y});
+        }
+    }
+}
+
 void queue_event(int type, int a, int b, int c, int d)
 {
     EventQueue& q = queue();
     std::lock_guard<std::mutex> lock(q.mutex);
-    push_event_locked(q, VrEvent{type, a, b, c, d});
+
+    const bool new_key_down = type == VR_EV_KEY_DOWN && q.held_keys.find(a) == q.held_keys.end();
+    if (q.count == kEngineEventCapacity ||
+        (new_key_down && q.held_keys.size() >= kMaxTrackedKeys)) {
+        recover_from_overflow_locked(q);
+    }
+
+    switch (type) {
+    case VR_EV_KEY_DOWN:
+        q.held_keys.insert(a);
+        break;
+    case VR_EV_KEY_UP:
+        q.held_keys.erase(a);
+        break;
+    case VR_EV_MOUSE_BUTTON:
+        if (a >= 1 && a <= 31) {
+            const int mask = 1 << (a - 1);
+            q.mouse_button_state = b != 0 ? (q.mouse_button_state | mask)
+                                          : (q.mouse_button_state & ~mask);
+        }
+        q.mouse_x = c;
+        q.mouse_y = d;
+        break;
+    case VR_EV_MOUSE_MOTION:
+        q.mouse_x = a;
+        q.mouse_y = b;
+        break;
+    default:
+        break;
+    }
+
+    append_raw_locked(q, VrEvent{type, a, b, c, d});
 }
 
 } // namespace
@@ -82,10 +145,7 @@ extern "C" void SDPhoneEngineResetEvents(void)
     EventQueue& q = queue();
     {
         std::lock_guard<std::mutex> lock(q.mutex);
-        q.head = 0;
-        q.tail = 0;
-        q.count = 0;
-        q.mouse_button_state = 0;
+        recover_from_overflow_locked(q);
     }
     sMenuMousePressed.store(false, std::memory_order_relaxed);
 }
@@ -105,24 +165,12 @@ extern "C" void VrQueueMouseButton(int button, int down, int x, int y)
     if (button < 1 || button > 31) {
         return;
     }
-
-    EventQueue& q = queue();
-    std::lock_guard<std::mutex> lock(q.mutex);
-    q.mouse_x = x;
-    q.mouse_y = y;
-    const int mask = 1 << (button - 1);
-    q.mouse_button_state = down ? q.mouse_button_state | mask
-                                : q.mouse_button_state & ~mask;
-    push_event_locked(q, VrEvent{VR_EV_MOUSE_BUTTON, button, down, x, y});
+    VrQueueEvent(VR_EV_MOUSE_BUTTON, button, down != 0 ? 1 : 0, x, y);
 }
 
 extern "C" void VrQueueMouseMotion(int x, int y, int state)
 {
-    EventQueue& q = queue();
-    std::lock_guard<std::mutex> lock(q.mutex);
-    q.mouse_x = x;
-    q.mouse_y = y;
-    push_event_locked(q, VrEvent{VR_EV_MOUSE_MOTION, x, y, state, 0});
+    VrQueueEvent(VR_EV_MOUSE_MOTION, x, y, state, 0);
 }
 
 extern "C" int VrPollEvent(VrEvent *event)
