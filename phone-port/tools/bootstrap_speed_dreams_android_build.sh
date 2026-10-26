@@ -208,8 +208,8 @@ text = cmake.read_text(encoding="utf-8")
 find_line = "find_package(utf8proc REQUIRED)"
 add_line = f'add_subdirectory("{utf8proc.as_posix()}" "${{CMAKE_BINARY_DIR}}/utf8proc")'
 alias_block = (
-    "if(NOT TARGET utf8proc::utf8proc)\\n"
-    "    add_library(utf8proc::utf8proc ALIAS utf8proc)\\n"
+    "if(NOT TARGET utf8proc::utf8proc)\n"
+    "    add_library(utf8proc::utf8proc ALIAS utf8proc)\n"
     "endif()"
 )
 if find_line in text:
@@ -217,7 +217,7 @@ if find_line in text:
 elif add_line not in text:
     raise SystemExit("Unexpected tgfdata CMake file: utf8proc dependency hook missing")
 if alias_block not in text:
-    text = text.replace(add_line, add_line + "\\n" + alias_block, 1)
+    text = text.replace(add_line, add_line + "\n" + alias_block, 1)
 # Ensure the public header include path is passed to tgfdata even when the
 # project helper does not propagate imported/alias target usage requirements.
 include_line = f'target_include_directories(tgfdata PRIVATE "{utf8proc.as_posix()}")'
