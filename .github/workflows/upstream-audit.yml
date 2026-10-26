@@ -1,0 +1,44 @@
+name: Upstream portability audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/upstream-audit.yml"
+      - "scripts/**"
+      - "docs/**"
+      - "README.md"
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Inspect upstream build requirements
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out porting workspace
+        uses: actions/checkout@v4
+
+      - name: Check out upstream Speed Dreams source
+        uses: actions/checkout@v4
+        with:
+          repository: argos-research/speed-dreams
+          ref: master
+          path: upstream
+          fetch-depth: 1
+
+      - name: Run source portability audit
+        run: bash scripts/audit_upstream.sh upstream reports/android-portability-audit.md
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-dreams-android-portability-audit
+          path: reports/android-portability-audit.md
+          if-no-files-found: error
+          retention-days: 30
