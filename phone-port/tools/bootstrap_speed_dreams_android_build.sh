@@ -196,26 +196,7 @@ done
 python3 "$ROOT/phone-port/tools/apply_phone_port.py" \
     --reference-root "$VR" --engine-root "$ENGINE"
 
-# The Redmi A1+ ABI can vary by firmware. Include both 64-bit and 32-bit ARM
-# native libraries so the APK can install on either Android userspace.
-python3 - "$VR/android/app/build.gradle" <<'PY'
-from pathlib import Path
-import sys
-
-p = Path(sys.argv[1])
-text = p.read_text(encoding="utf-8")
-old = "abiFilters 'arm64-v8a'"
-new = "abiFilters 'arm64-v8a', 'armeabi-v7a'"
-if new not in text:
-    if text.count(old) != 1:
-        raise SystemExit("Could not replace the expected single Android ABI filter")
-    text = text.replace(old, new, 1)
-remaining = text.replace(new, "", 1)
-if text.count(new) != 1 or old in remaining or "abiFilters 'armeabi-v7a'" in remaining:
-    raise SystemExit("Android ABI filter did not resolve to both ARM ABIs only")
-p.write_text(text, encoding="utf-8", newline="\n")
-print("Configured Android native build for Redmi A1+ with arm64-v8a and armeabi-v7a")
-PY
+# The phone patcher configures both ARM ABIs and enforces that setting.
 
 # SpeedDreams-VR builds engine sources through cmake/sd.cmake rather than the
 # upstream engine's own CMakeLists. Declare utf8proc in the active VR project and
