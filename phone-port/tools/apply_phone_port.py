@@ -202,7 +202,7 @@ def patch_activity(path: Path) -> str:
                             "import android.view.SurfaceView;\nimport android.view.MotionEvent;",
                             "SurfaceView import")
     for unused in ("import static android.system.Os.setenv;\n",
-                   "import android.os.Build;\n", "import java.util.Locale;\n"):
+                   "import java.util.Locale;\n"):
         text = text.replace(unused, "")
     static_pattern = re.compile(
         r"\s*static\s*\{\s*String manufacturer.*?System\.loadLibrary\(\"sdvr\"\);\s*\}",
