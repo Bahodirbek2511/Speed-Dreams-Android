@@ -509,7 +509,7 @@ def patch_control(path: Path) -> str:
     if 'extern "C" int SDPhoneReadJoystick(int* buttons, float* axes);' not in text:
         # Place the declaration near the joystick API to avoid a global
         # dependency on VR headers in the upstream tgfclient target.
-        marker = re.search(r"(?m)^\s*GfctrlJoyGetCurrentStates\s*\(", text)
+        marker = re.search(r"(?m)^\s*(?:int\s+)?GfctrlJoyGetCurrentStates\s*\(", text)
         require(marker is not None, "Could not find a joystick API declaration point")
         text = text[:marker.start()] + proto + text[marker.start():]
 
