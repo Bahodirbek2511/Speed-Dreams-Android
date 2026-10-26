@@ -4,11 +4,17 @@ Experimental workspace for a **native, flat-screen Android port** of Speed Dream
 
 ## Current status
 
-**No Redmi-compatible phone APK has been built.** The existing GitHub Actions workflow only audits source portability.
+**A playable Redmi phone APK has not been built.** The repository now has host-tested touch-control code and a separately built Android ARM64 input/JNI library, but these are not the Speed Dreams game itself.
 
-A separate project, [SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), has already ported Speed Dreams 2.4 to Android ARM64 for standalone VR headsets. This is useful technical reference, but it is **not a phone build**: its Android manifest requires VR head-tracking hardware, uses OpenXR, and expects headset controllers. Its APK must not be presented as compatible with Redmi A1+.
+A separate project, [SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), has ported Speed Dreams 2.4 to Android ARM64 for standalone VR headsets. Its APK is **not compatible with Redmi A1+ as-is**: the manifest requires VR head-tracking hardware, native startup requires OpenXR, and controls expect headset controllers.
 
-See [the phone-port gap analysis](docs/PHONE_PORT_GAP_ANALYSIS.md) for the evidence and required work.
+## Verified CI progress
+
+- [Android ARM64 input/JNI library build](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664) — successful; artifact: [libsdphoneinput.so and symbol report](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664/artifacts/12640157250).
+- [Touch-control unit tests and phone-patch fixture tests](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300477268) — successful.
+- The source probe found a real blocker: the Speed Dreams engine remote does not advertise the VR port's required quest-port branch. [Probe run](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191) · [report artifact](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191/artifacts/12640256018).
+
+These tests do **not** compile the complete game, package a phone APK, or prove Redmi gameplay compatibility.
 
 ## Target device
 
@@ -17,32 +23,27 @@ See [the phone-port gap analysis](docs/PHONE_PORT_GAP_ANALYSIS.md) for the evide
 - MediaTek Helio A22 / PowerVR GE8320
 - Android 12 Go (device configuration may vary)
 
-## Engineering goals
+## Remaining engineering gates
 
-- Reuse proven Android/ARM64 dependency and engine-porting work where licensing and source provenance permit.
-- Replace the headset-only OpenXR presentation path with a normal Android GLES surface and a mono camera/render path.
-- Add touch controls for steering, throttle, brake, and menus.
-- Keep rendering resolution, texture memory, and background workload low for a 2 GB device.
-- Build a reproducible APK in GitHub Actions and keep full native build logs.
-- Verify install, startup, track load, touch controls, and a complete race on the actual Redmi A1+ before claiming compatibility.
-
-## Technical constraints
-
-A manifest edit alone cannot turn the VR port into a phone game: its native startup and frame loop depend on an OpenXR runtime, while the controls are mapped from headset controllers. A phone version needs a real non-OpenXR rendering/input path. CI can verify a compile and package, but cannot prove playable performance on Redmi A1+ without device testing.
+1. Obtain or recreate a reproducible Android-compatible engine source revision, including the missing engine modifications and pinned dependencies.
+2. Integrate one phone input implementation into the full engine without duplicate JNI/event/joystick symbols.
+3. Build a non-OpenXR EGL/GLES phone renderer and single-view race path.
+4. Package legally distributable game data, then build and inspect the complete arm64-v8a APK.
+5. Install on the Redmi A1+, verify menus, track loading, touch controls, sound and a complete race, and measure memory/frame rate.
 
 ## Project documents
 
 - [Porting plan](docs/PORTING_PLAN.md)
 - [Build status](docs/BUILD_STATUS.md)
 - [Android phone-port gap analysis](docs/PHONE_PORT_GAP_ANALYSIS.md)
+- [Phone input component](porting/phone/README.md)
+- [Experimental phone native backend](phone-port/README.md)
 
 ## Sources
 
 - [Official Speed Dreams site](https://www.speed-dreams.net/)
-- [Speed Dreams source reference](https://github.com/argos-research/speed-dreams)
+- [Speed Dreams source](https://forge.a-lec.org/speed-dreams/speed-dreams-code/)
 - [SpeedDreams-VR source](https://github.com/SgtBilko76/SpeedDreams-VR)
 - [SpeedDreams-VR releases](https://github.com/SgtBilko76/SpeedDreams-VR/releases)
 
-## Release integrity
-
-Never publish a placeholder APK or a VR-only package as the Redmi phone version. Package game data only where its licence permits redistribution. Report exact build results and device-test evidence; do not infer phone compatibility from an ARM64 APK alone.
+Never publish the VR APK, input-only library, or a placeholder app as the Redmi phone version. A release may be called playable only after the full native game has been tested on the actual device.
