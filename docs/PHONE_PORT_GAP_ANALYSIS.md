@@ -4,42 +4,38 @@ Last reviewed: 2026-10-26
 
 ## Executive result
 
-A native Android port of Speed Dreams exists for VR headsets, and this repository now has tested phone-input components. It still does **not** have a genuine Redmi A1+-compatible game APK.
+The repository now builds an experimental flat-screen Android APK using the public Speed Dreams engine and bundled game data. Earlier APKs were reported by the user as failing installation on Redmi A1+. The new candidate hardens the package identity, native ABIs, signing and GLES compatibility, but physical-device acceptance remains outstanding.
 
-## Evidence from the VR reference
+## Reference and adaptation
 
-- Source: [SgtBilko76/SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR)
-- Release: [v0.10.0-beta](https://github.com/SgtBilko76/SpeedDreams-VR/releases/tag/v0.10.0-beta), published 2026-10-20.
-- The release APK is approximately 233 MB and targets Meta Quest/Pico class headsets.
-- Its Android Gradle config targets arm64-v8a, uses NDK 27.2.12479018, and sets minSdk 29.
-- Its manifest requires android.hardware.vr.headtracking, sets VR-only metadata, and declares immersive headset launch categories.
-- Its CMake build requires OpenXR::openxr_loader; src/vr/sd_vr.cpp owns the OpenXR session and VR presentation.
-- Its controller mapping in src/vr/vr_input.cpp derives steering, throttle, brake and menu actions from headset-controller state.
+- Reference: [SgtBilko76/SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR), tag `v0.10.0-beta`.
+- Engine: the public Speed Dreams `main` checkout, with the resolved commit recorded per build.
+- Native dependencies are checked out from pinned refs and recorded in the source lock file.
+- The patcher guards OpenXR-only startup, adds the phone EGL/GLES backend and its JNI lifecycle, integrates touch controls, adapts the public engine's screen/GUI setup and simplifies the race render loop to a single view.
 
-## Confirmed full-build blocker: missing engine branch
+The original VR APK is not a phone package: it declares headset-specific features, starts OpenXR and expects headset controllers. The phone workflow must use the patched build output, not the upstream VR APK unchanged.
 
-The reference CMake project expects a companion engine tree at ../speed-dreams-code with Android changes from branch quest-port. The CI probe against https://forge.a-lec.org/speed-dreams/speed-dreams-code.git found that the remote is reachable but does not advertise quest-port. It listed other branches, but did not prove those branches include the Android-specific source modifications.
+## Reported installer failure and fixes
 
-- [Source probe run](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191)
-- [Probe report artifact](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191/artifacts/12640256018)
+The previous APKs had a valid ZIP structure and a cryptographically valid v2 signature, but the earlier phone package retained upstream application identity, required GLES 3.1 even though the backend falls back to GLES 2, and used a newly generated CI debug signing key for each build. Those properties were unnecessarily fragile for sideload installation and repeated attempts.
 
-This means the actual game engine cannot be built reproducibly using the current public source refs alone. It is not safe to silently substitute desktop main, because the required Android renderer/lifecycle changes may be missing.
+The new candidate addresses those points:
 
-## Work that does pass CI
+1. `com.speeddreams.mobile` package identity avoids collisions with the VR reference and prior package name.
+2. Both `arm64-v8a` and `armeabi-v7a` are included.
+3. v1 and v2 APK signatures are explicitly enabled and checked.
+4. A stable development signing key is used for subsequent test builds.
+5. GLES 2.0 is declared as the minimum required GL feature, consistent with the phone EGL fallback.
+6. CI checks APK metadata, alignment, ZIP integrity, signatures and the game-data archive.
 
-- [Phone input/JNI ARM64 build](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664): builds the native control library and validates its exported JNI/engine symbols.
-- [Host tests and patcher fixtures](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300477268): touch-control unit tests, Python syntax check and integration patcher test pass.
-- These tests validate individual components and source transformations on fixture files only; they do not build or launch the complete game.
+These are evidence-based compatibility improvements, not a substitute for the user's device-level install test. If the new candidate fails, an `adb install` result is the next way to obtain the exact Package Manager failure code.
 
-## Required implementation
+## Remaining required tests
 
-1. Recover the Android engine fork/patches or port them against a pinned engine commit.
-2. Reconstruct and pin all native dependencies and game-data inputs, respecting each asset licence.
-3. Integrate exactly one phone input implementation; current porting/phone and phone-port are separate prototype layers and must not be linked together because some symbols overlap.
-4. Build the non-OpenXR Android EGL/GLES renderer and single-view race path against the real engine.
-5. Build and inspect a complete APK, then install it on Redmi A1+ and verify startup, menu touch, track load, driving, sound, pause/resume and a full race.
-6. Measure memory, startup and sustained frame rate on the real device.
+1. Install the new Release APK on physical Redmi A1+.
+2. Verify first-run all-files access handling and data extraction.
+3. Launch the menu, load a track and complete a race.
+4. Verify touch steering, throttle/brake, pause/camera and audio.
+5. Record sustained FPS, memory, crashes, startup time and thermals.
 
-## Release integrity
-
-Do not rename or re-sign the VR APK as a phone game. Do not call the input-only JNI library an APK or package a blank activity and present it as the game. A release remains blocked until a full native game APK is built and device-tested.
+A successful CI compile is necessary but does not prove the game runs correctly on the target phone.
