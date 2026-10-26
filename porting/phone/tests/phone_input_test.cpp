@@ -116,6 +116,18 @@ int main()
     SDPhoneInputQueueMenuTouch(SD_PHONE_TOUCH_DOWN, 0.5f, 0.5f);
     assert(SDPhoneInputPollMenuTouch(&event) == 0);
 
+    /* Overflow must cancel the queued gesture instead of silently dropping
+       an UP/CANCEL and leaving the menu mouse button stuck. */
+    SDPhoneInputSetViewport(100, 100);
+    SDPhoneInputQueueMenuTouch(SD_PHONE_TOUCH_DOWN, 0.5f, 0.5f);
+    for (int i = 0; i < 127; ++i) {
+        SDPhoneInputQueueMenuTouch(SD_PHONE_TOUCH_MOVE, 0.51f, 0.51f);
+    }
+    SDPhoneInputQueueMenuTouch(SD_PHONE_TOUCH_MOVE, 0.52f, 0.52f);
+    assert(SDPhoneInputPollMenuTouch(&event) == 1);
+    assert(event.action == SD_PHONE_TOUCH_CANCEL);
+    assert(SDPhoneInputPollMenuTouch(&event) == 0);
+
     SDPhoneInputReset();
     assert(SDPhoneInputRead(0, &buttons, axes) == 0);
     assert(buttons == 0);
