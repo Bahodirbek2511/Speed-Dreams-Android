@@ -83,6 +83,7 @@ void queue_event(int type, int a, int b, int c, int d)
     if (q.count == kEngineEventCapacity ||
         (new_key_down && q.held_keys.size() >= kMaxTrackedKeys)) {
         recover_from_overflow_locked(q);
+        sMenuMousePressed.store(false, std::memory_order_relaxed);
     }
 
     switch (type) {
@@ -127,8 +128,8 @@ extern "C" void SDPhoneInputPumpEvents(void)
         VrQueueMouseMotion(touch.x, touch.y, was_pressed ? 1 : 0);
 
         if (touch.action == SD_PHONE_TOUCH_DOWN) {
-            sMenuMousePressed.store(true, std::memory_order_relaxed);
             VrQueueMouseButton(1, 1, touch.x, touch.y);
+            sMenuMousePressed.store(true, std::memory_order_relaxed);
         } else if (touch.action == SD_PHONE_TOUCH_UP ||
                    touch.action == SD_PHONE_TOUCH_CANCEL) {
             const bool was_down =
