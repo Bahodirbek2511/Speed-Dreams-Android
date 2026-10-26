@@ -531,6 +531,24 @@ def patch_control(path: Path) -> str:
 
 
 
+def patch_sd_cmake(path: Path) -> str:
+    """Skip source entries removed by newer upstream engine revisions."""
+    text = read(path)
+    old = "        list(APPEND srcs ${dir}/${f})"
+    new = (
+        "        if(EXISTS \"${dir}/${f}\")\\n"
+        "            list(APPEND srcs ${dir}/${f})\\n"
+        "        else()\\n"
+        "            message(WARNING \"Skipping unavailable upstream source: ${dir}/${f}\")\\n"
+        "        endif()"
+    )
+    if text.count(old) == 2:
+        text = text.replace(old, new)
+    require(text.count('Skipping unavailable upstream source:') >= 2,
+            "Could not add compatibility checks for upstream source lists")
+    return text
+
+
 def apply(reference_root: Path, engine_root: Path) -> list[str]:
     require(reference_root.is_dir(), f"Reference checkout is missing: {reference_root}")
     require(engine_root.is_dir(), f"Engine checkout is missing: {engine_root}")
@@ -551,6 +569,7 @@ def apply(reference_root: Path, engine_root: Path) -> list[str]:
     patches = [
         (reference_root / "CMakeLists.txt",
          lambda path: patch_cmake(path, upstream_main=upstream_main)),
+        (reference_root / "cmake/sd.cmake", patch_sd_cmake),
         (reference_root / "android/app/build.gradle", patch_gradle),
         (reference_root / "android/app/src/main/AndroidManifest.xml", patch_manifest),
         (reference_root / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java", patch_activity),
