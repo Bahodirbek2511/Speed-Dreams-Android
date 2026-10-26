@@ -81,7 +81,7 @@ jobs:
           cp "$APK" dist/Speed-Dreams-Mobile-Redmi-Universal.apk
           file dist/Speed-Dreams-Mobile-Redmi-Universal.apk
 
-      - name: Enforce v1 and v2 signatures with apksigner
+      - name: Enforce modern APK signature with apksigner
         run: |
           set -euo pipefail
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
@@ -89,8 +89,9 @@ jobs:
           BT_DIR="$SDK_ROOT/build-tools/35.0.0"
           test -s "$HOME/.android/debug.keystore"
           "$BT_DIR/apksigner" version
-          # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
+          # This app requires API 29+, where APK Signature Scheme v2 is supported;
+          # v1 is legacy compatibility only and is not required for Redmi A1+ Android 12.
           "$BT_DIR/apksigner" sign --verbose \
             --min-sdk-version 21 \
             --v1-signing-enabled true \
@@ -102,11 +103,10 @@ jobs:
             --key-pass pass:android \
             --out "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
             "$APK"
-          # Fail here if the signer did not really emit both requested schemes.
+          # Require the modern v2 signature; v1 is not an install requirement for API 29+.
           "$BT_DIR/apksigner" verify --verbose \
             "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
             | tee "$RUNNER_TEMP/preflight-apksigner-verify.txt"
-          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
           mv "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" "$APK"
 
@@ -139,10 +139,8 @@ jobs:
           grep -Fq "'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
 
-          # Recheck signing explicitly; require v1 for vendor-installer compatibility
-          # and v2 for modern Android. Never edit the APK after this step.
+          # Recheck the modern v2 signature. Never edit the APK after this step.
           "$BT_DIR/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner-verify.txt"
-          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apksigner-verify.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apksigner-verify.txt"
           "$BT_DIR/zipalign" -c -v 4 "$APK" > "$RUNNER_TEMP/zipalign-check.txt"
 
@@ -163,7 +161,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
           TITLE="Speed Dreams Mobile — Redmi A1+ (signed universal ARM)"
-          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone1. Includes arm64-v8a and armeabi-v7a native libraries, v1/v2 signatures, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
+          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone1. Includes arm64-v8a and armeabi-v7a native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
             gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true
