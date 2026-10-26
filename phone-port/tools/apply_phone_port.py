@@ -355,24 +355,24 @@ def patch_guiscreen(path: Path) -> str:
 #endif
 """
         block = block[:open_brace + 1] + prologue + block[open_brace + 1:]
-        block, flags_count = re.subn(
-            r"SDL_WINDOW_HIDDEN\s*\|\s*SDL_WINDOW_OPENGL",
-            "SDL_WINDOW_HIDDEN", block, count=1)
-        require(flags_count == 1,
-                "Could not remove SDL_WINDOW_OPENGL from phone screen window")
-
+        # Keep the complete upstream if/else structure intact: removing the
+        # whole context block left its fullscreen "else" outside the if.
         context_start = block.find("    /* Create OpenGL context */")
         context_end = block.find("\n    return PScreenSurface;", context_start)
         require(context_start >= 0 and context_end > context_start,
                 "Could not isolate the SDL OpenGL context creation block")
         original_context = block[context_start:context_end]
-        replacement = (
+        require("SDL_GL_CreateContext" in original_context,
+                "Could not locate SDL_GL_CreateContext in screen initialization")
+        original_context = original_context.replace(
+            "GLContext = SDL_GL_CreateContext(GfuiWindow);",
             "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
-            "    // sd_phone.cpp owns the current EGL/GLES context on this thread.\n"
+            "    // Keep SDL's if/else structure balanced; phone EGL setup replaces this context.\n"
             "    GLContext = NULL;\n"
-            "#else\n" + original_context + "\n#endif"
-        )
-        block = block[:context_start] + replacement + block[context_end:]
+            "#else\n"
+            "    GLContext = SDL_GL_CreateContext(GfuiWindow);\n"
+            "#endif")
+        block = block[:context_start] + original_context + block[context_end:]
         text = text[:function_start] + block + text[function_end:]
 
     resizable_marker = "    GfScrResizable = GfScrGetResizable();"
