@@ -18,7 +18,7 @@ pass "audit shell scripts pass bash syntax checks"
 
 grep -q 'SpeedDreams-VR' .github/workflows/upstream-audit.yml || fail "workflow does not audit Android reference"
 grep -q 'audit_android_reference.sh' .github/workflows/upstream-audit.yml || fail "workflow does not run Android phone-gap audit"
-grep -q 'NOT CREATED\|not built\|not built' docs/BUILD_STATUS.md || fail "build status must clearly state that no phone APK exists"
+grep -qi 'not yet verified' docs/BUILD_STATUS.md || fail "build status must clearly state that device playability is not yet verified"
 grep -q 'OpenXR' docs/PHONE_PORT_GAP_ANALYSIS.md || fail "phone gap report must track OpenXR dependency"
 grep -q 'touch' docs/PHONE_PORT_GAP_ANALYSIS.md || fail "phone gap report must track touch controls"
 pass "workflow and status documentation checks pass"
