@@ -175,17 +175,17 @@ def patch_gradle(path: Path) -> str:
         text = text.replace(old_signing_note, new_signing_note, 1)
 
     # Explicitly enable both APK signature schemes on the signing config.
-    # v1SigningEnabled/v2SigningEnabled are the Groovy DSL properties consumed
-    # by the Android Gradle Plugin used by this pinned upstream project.
-    has_v1 = "v1SigningEnabled true" in text
-    has_v2 = "v2SigningEnabled true" in text
+    # enableV1Signing/enableV2Signing are the signing-config properties used
+    # by the Android Gradle Plugin version in this pinned upstream project.
+    has_v1 = "enableV1Signing = true" in text
+    has_v2 = "enableV2Signing = true" in text
     if not has_v1 and not has_v2:
         text = replace_once(text, "keyPassword 'android'",
-            "keyPassword 'android'\n            v1SigningEnabled true\n            v2SigningEnabled true",
+            "keyPassword 'android'\n            enableV1Signing = true\n            enableV2Signing = true",
             "v1/v2 APK signing settings")
     elif not (has_v1 and has_v2):
         raise PortError("Only one of the required v1/v2 signing settings is present")
-    require("v1SigningEnabled true" in text and "v2SigningEnabled true" in text,
+    require("enableV1Signing = true" in text and "enableV2Signing = true" in text,
             "APK v1/v2 signing is not enabled")
     return text
 
