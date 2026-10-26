@@ -168,6 +168,12 @@ def patch_gradle(path: Path) -> str:
             "abiFilters 'arm64-v8a'" not in text.replace(universal_abi, "", 1),
             "Android ABI filters are not configured for both ARM variants")
 
+    old_signing_note = ("// Signed with the debug key: this is a sideloaded build, not a Store\n"
+                        "// submission, and a throwaway key would only make upgrades harder.")
+    new_signing_note = ("// Stable development certificate for sideload tests. Never use it for a Store release.")
+    if old_signing_note in text:
+        text = text.replace(old_signing_note, new_signing_note, 1)
+
     # Explicitly enable both JAR/v1 and APK/v2 signatures for compatibility
     # with vendor package installers; modern Android still verifies v2.
     has_v1 = "v1SigningEnabled true" in text
