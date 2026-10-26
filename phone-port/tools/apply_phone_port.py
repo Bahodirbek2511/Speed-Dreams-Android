@@ -362,7 +362,7 @@ def patch_guiscreen(path: Path) -> str:
         text = text[:function_start] + block + text[function_end:]
 
     resizable_marker = "    GfScrResizable = GfScrGetResizable();"
-    if resizable_marker in text:
+    if "GfScrResizable = false;" not in text and resizable_marker in text:
         text = replace_once(text, resizable_marker,
             "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
             "    GfScrResizable = false;\n"
@@ -376,12 +376,13 @@ def patch_guiscreen(path: Path) -> str:
         "    SDL_GL_DeleteContext(GLContext);\n"
         "    GLContext = NULL;"
     )
-    if shutdown_context in text:
+    if "phone EGL context remains current on the game thread" not in text and shutdown_context in text:
         text = replace_once(text, shutdown_context,
             "#ifndef SD_PHONE_UPSTREAM_MAIN\n"
             "    SDL_GL_MakeCurrent(GfuiWindow,GLContext);\n"
             "    SDL_GL_DeleteContext(GLContext);\n"
             "#endif\n"
+            "    // phone EGL context remains current on the game thread.\n"
             "    GLContext = NULL;",
             "phone screen shutdown context handling")
 
