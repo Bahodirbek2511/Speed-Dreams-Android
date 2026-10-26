@@ -88,6 +88,7 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           BT_DIR="$SDK_ROOT/build-tools/35.0.0"
           test -s "$HOME/.android/debug.keystore"
+          "$BT_DIR/apksigner" version
           # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
           "$BT_DIR/apksigner" sign --verbose \
