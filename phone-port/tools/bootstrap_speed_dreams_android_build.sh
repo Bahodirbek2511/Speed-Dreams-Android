@@ -88,7 +88,7 @@ PLIB="$TP/plib"
 if [[ ! -f "$PLIB/src/util/ul.cxx" ]]; then
     tmp_plib="$WORK/plib-1.8.5.tar.gz"
     curl --fail --location --retry 3 \
-        "https://downloads.sourceforge.net/project/plib/PLIB/1.8.5/plib-1.8.5.tar.gz" \
+        "https://sourceforge.net/projects/plib/files/PLIB/1.8.5/plib-1.8.5.tar.gz/download" \
         -o "$tmp_plib"
     mkdir -p "$PLIB"
     tar -xzf "$tmp_plib" --strip-components=1 -C "$PLIB"
