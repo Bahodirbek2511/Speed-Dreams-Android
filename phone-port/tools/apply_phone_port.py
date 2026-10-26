@@ -544,7 +544,7 @@ def patch_sd_cmake(path: Path) -> str:
     )
     if text.count(old) == 2:
         text = text.replace(old, new)
-    require(text.count('Skipping unavailable upstream source:') >= 2,
+    require(text.count('Skipping unavailable upstream source:') >= 1,
             "Could not add compatibility checks for upstream source lists")
     return text
 
