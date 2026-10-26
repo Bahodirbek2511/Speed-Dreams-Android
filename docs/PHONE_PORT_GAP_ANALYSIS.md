@@ -4,52 +4,42 @@ Last reviewed: 2026-10-26
 
 ## Executive result
 
-A native Android port of Speed Dreams exists for VR headsets, but the checked reference is not a flat-screen phone game. This repository does **not** yet have a genuine Redmi A1+-compatible APK.
+A native Android port of Speed Dreams exists for VR headsets, and this repository now has tested phone-input components. It still does **not** have a genuine Redmi A1+-compatible game APK.
 
-## Reference and evidence
+## Evidence from the VR reference
 
 - Source: [SgtBilko76/SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR)
-- Latest published release at review time: [v0.10.0-beta](https://github.com/SgtBilko76/SpeedDreams-VR/releases/tag/v0.10.0-beta), published 2026-10-20.
+- Release: [v0.10.0-beta](https://github.com/SgtBilko76/SpeedDreams-VR/releases/tag/v0.10.0-beta), published 2026-10-20.
 - The release APK is approximately 233 MB and targets Meta Quest/Pico class headsets.
-- Its Android Gradle configuration targets arm64-v8a, uses Android NDK 27.2.12479018, and sets minSdk 29.
+- Its Android Gradle config targets arm64-v8a, uses NDK 27.2.12479018, and sets minSdk 29.
 - Its manifest requires android.hardware.vr.headtracking, sets VR-only metadata, and declares immersive headset launch categories.
-- Its CMake build requires OpenXR::openxr_loader; the native entry/frame code in src/vr/sd_vr.cpp owns the OpenXR session and VR presentation.
-- Its controller mapping in src/vr/vr_input.cpp derives steering, throttle, brake and menu actions from headset controller state.
+- Its CMake build requires OpenXR::openxr_loader; src/vr/sd_vr.cpp owns the OpenXR session and VR presentation.
+- Its controller mapping in src/vr/vr_input.cpp derives steering, throttle, brake and menu actions from headset-controller state.
 
-Sources:
-- [Android Gradle configuration](https://github.com/SgtBilko76/SpeedDreams-VR/blob/master/android/app/build.gradle)
-- [Android manifest](https://github.com/SgtBilko76/SpeedDreams-VR/blob/master/android/app/src/main/AndroidManifest.xml)
-- [Native CMake configuration](https://github.com/SgtBilko76/SpeedDreams-VR/blob/master/CMakeLists.txt)
-- [VR native entry point](https://github.com/SgtBilko76/SpeedDreams-VR/blob/master/src/vr/sd_vr.cpp)
-- [VR input mapping](https://github.com/SgtBilko76/SpeedDreams-VR/blob/master/src/vr/vr_input.cpp)
+## Confirmed full-build blocker: missing engine branch
 
-## Why it cannot be shipped as a Redmi APK unchanged
+The reference CMake project expects a companion engine tree at ../speed-dreams-code with Android changes from branch quest-port. The CI probe against https://forge.a-lec.org/speed-dreams/speed-dreams-code.git found that the remote is reachable but does not advertise quest-port. It listed other branches, but did not prove those branches include the Android-specific source modifications.
 
-1. The app's declared device capabilities and launch metadata are for VR hardware.
-2. Native initialization expects an OpenXR runtime and an active XR session. A phone without a compatible headset runtime cannot satisfy this merely by hiding VR manifest entries.
-3. Main-menu interactions and vehicle controls are sourced from headset-controller state. Phone touch events are not mapped into this system.
-4. Removing the OpenXR frame loop requires a different surface/render/presentation path and mono view handling.
-5. The source project references companion Speed Dreams source/data trees and third-party libraries that are not all committed in its own repository, so a clean CI build must reconstruct and pin those inputs.
-6. The target's 2 GB RAM requires performance and memory measurements; an ARM64 compile does not prove acceptable gameplay.
+- [Source probe run](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191)
+- [Probe report artifact](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191/artifacts/12640256018)
+
+This means the actual game engine cannot be built reproducibly using the current public source refs alone. It is not safe to silently substitute desktop main, because the required Android renderer/lifecycle changes may be missing.
+
+## Work that does pass CI
+
+- [Phone input/JNI ARM64 build](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300397664): builds the native control library and validates its exported JNI/engine symbols.
+- [Host tests and patcher fixtures](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40300477268): touch-control unit tests, Python syntax check and integration patcher test pass.
+- These tests validate individual components and source transformations on fixture files only; they do not build or launch the complete game.
 
 ## Required implementation
 
-### A. Non-VR renderer and lifecycle
-
-Create a phone-only backend using a normal Android EGL/GLES surface; decouple frame timing, camera transforms and presentation from OpenXR. Preserve Speed Dreams' physics, menus and modules where they do not depend on headset state. Keep the VR backend untouched if the upstream reference is reused, so the two paths can be tested independently.
-
-### B. Touch and phone UI
-
-Introduce explicit touch input events. Map menu tap/move to the engine's mouse events and map racing input to a virtual joystick: steering left/right, throttle, brake, reverse, gear shift, pause and camera. Make controls scalable and avoid obscuring the central driving view.
-
-### C. Low-memory defaults
-
-Use a conservative resolution/render scale, reduced texture size and draw distance, disable expensive visual effects by default, avoid preloading the entire car/track catalogue, and handle lifecycle memory pressure cleanly.
-
-### D. Build, package and test
-
-Pin source, dependencies and NDK; ensure reproducible native builds; inspect the output APK's manifest, package ID, ABI and minimum API. Then install and test the real app on Redmi A1+: startup, menu navigation, track load, touch driving, sound, pause/resume, completed race, peak memory and sustained frame rate.
+1. Recover the Android engine fork/patches or port them against a pinned engine commit.
+2. Reconstruct and pin all native dependencies and game-data inputs, respecting each asset licence.
+3. Integrate exactly one phone input implementation; current porting/phone and phone-port are separate prototype layers and must not be linked together because some symbols overlap.
+4. Build the non-OpenXR Android EGL/GLES renderer and single-view race path against the real engine.
+5. Build and inspect a complete APK, then install it on Redmi A1+ and verify startup, menu touch, track load, driving, sound, pause/resume and a full race.
+6. Measure memory, startup and sustained frame rate on the real device.
 
 ## Release integrity
 
-Do not rename, re-sign or relabel the VR APK and call it Redmi-compatible. Do not package a blank activity or a manifest-only hack as the game. Keep the APK release blocked until the non-OpenXR phone path is implemented and tested.
+Do not rename or re-sign the VR APK as a phone game. Do not call the input-only JNI library an APK or package a blank activity and present it as the game. A release remains blocked until a full native game APK is built and device-tested.
