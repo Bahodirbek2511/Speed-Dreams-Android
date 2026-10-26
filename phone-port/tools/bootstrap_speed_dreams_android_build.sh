@@ -55,12 +55,12 @@ printf 'SpeedDreams-VR\tv0.10.0-beta\t%s\n' "$(git -C "$VR" rev-parse HEAD)" >> 
 
 if [[ ! -d "$ENGINE/.git" ]]; then
     git -c advice.detachedHead=false clone --depth 1 --recurse-submodules --shallow-submodules \
-        --single-branch --branch quest-port \
+        --single-branch --branch main \
         https://forge.a-lec.org/speed-dreams/speed-dreams-code.git "$ENGINE"
 else
     git -C "$ENGINE" submodule update --init --depth 1
 fi
-printf 'speed-dreams-code\tquest-port\t%s\n' "$(git -C "$ENGINE" rev-parse HEAD)" >> "$MANIFEST"
+printf 'speed-dreams-code\tmain\t%s\n' "$(git -C "$ENGINE" rev-parse HEAD)" >> "$MANIFEST"
 git -C "$ENGINE" submodule status --recursive | tee "$WORK/engine-submodules.txt"
 
 for item in \
