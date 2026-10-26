@@ -1,0 +1,33 @@
+name: Android phone input tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "porting/phone/**"
+      - ".github/workflows/phone-input-tests.yml"
+  pull_request:
+    paths:
+      - "porting/phone/**"
+      - ".github/workflows/phone-input-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-input-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure native input component
+        run: cmake -S porting/phone -B build/phone-input -DSD_PHONE_INPUT_BUILD_TESTS=ON
+
+      - name: Build with warnings enabled
+        run: cmake --build build/phone-input --parallel 2
+
+      - name: Run unit tests
+        run: ctest --test-dir build/phone-input --output-on-failure
