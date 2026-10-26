@@ -4,6 +4,7 @@
 #include "vr_events.h"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <mutex>
 
@@ -28,6 +29,8 @@ EventQueue& queue()
     return q;
 }
 
+std::atomic<bool> sMenuMousePressed{false};
+
 void push_event_locked(EventQueue& q, const VrEvent& event)
 {
     if (q.count == kEngineEventCapacity) {
@@ -46,12 +49,6 @@ void queue_event(int type, int a, int b, int c, int d)
     push_event_locked(q, VrEvent{type, a, b, c, d});
 }
 
-bool& menu_mouse_pressed()
-{
-    static bool pressed = false;
-    return pressed;
-}
-
 } // namespace
 
 extern "C" int VrJoyRead(int joystick_index, int *buttons, float *axes)
@@ -63,24 +60,34 @@ extern "C" void SDPhoneInputPumpEvents(void)
 {
     SDPhoneTouchEvent touch{};
     while (SDPhoneInputPollMenuTouch(&touch)) {
-        /* Keep the cursor in sync for both passive movement and click events. */
-        VrQueueMouseMotion(touch.x, touch.y, menu_mouse_pressed() ? 1 : 0);
+        const bool was_pressed = sMenuMousePressed.load(std::memory_order_relaxed);
+        VrQueueMouseMotion(touch.x, touch.y, was_pressed ? 1 : 0);
 
         if (touch.action == SD_PHONE_TOUCH_DOWN) {
-            menu_mouse_pressed() = true;
+            sMenuMousePressed.store(true, std::memory_order_relaxed);
             VrQueueMouseButton(1, 1, touch.x, touch.y);
-        } else if (touch.action == SD_PHONE_TOUCH_UP) {
-            if (menu_mouse_pressed()) {
+        } else if (touch.action == SD_PHONE_TOUCH_UP ||
+                   touch.action == SD_PHONE_TOUCH_CANCEL) {
+            const bool was_down =
+                sMenuMousePressed.exchange(false, std::memory_order_relaxed);
+            if (was_down) {
                 VrQueueMouseButton(1, 0, touch.x, touch.y);
             }
-            menu_mouse_pressed() = false;
-        } else if (touch.action == SD_PHONE_TOUCH_CANCEL) {
-            if (menu_mouse_pressed()) {
-                VrQueueMouseButton(1, 0, touch.x, touch.y);
-            }
-            menu_mouse_pressed() = false;
         }
     }
+}
+
+extern "C" void SDPhoneEngineResetEvents(void)
+{
+    EventQueue& q = queue();
+    {
+        std::lock_guard<std::mutex> lock(q.mutex);
+        q.head = 0;
+        q.tail = 0;
+        q.count = 0;
+        q.mouse_button_state = 0;
+    }
+    sMenuMousePressed.store(false, std::memory_order_relaxed);
 }
 
 extern "C" void VrQueueEvent(int type, int a, int b, int c, int d)
@@ -95,12 +102,17 @@ extern "C" void VrQueueKey(int keycode, int down, int modifiers, int unicode)
 
 extern "C" void VrQueueMouseButton(int button, int down, int x, int y)
 {
+    if (button < 1 || button > 31) {
+        return;
+    }
+
     EventQueue& q = queue();
     std::lock_guard<std::mutex> lock(q.mutex);
     q.mouse_x = x;
     q.mouse_y = y;
-    q.mouse_button_state = down ? q.mouse_button_state | (1 << (button - 1))
-                                : q.mouse_button_state & ~(1 << (button - 1));
+    const int mask = 1 << (button - 1);
+    q.mouse_button_state = down ? q.mouse_button_state | mask
+                                : q.mouse_button_state & ~mask;
     push_event_locked(q, VrEvent{VR_EV_MOUSE_BUTTON, button, down, x, y});
 }
 
