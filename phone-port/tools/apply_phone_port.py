@@ -362,7 +362,7 @@ def patch_guiscreen(path: Path) -> str:
                 "Could not remove SDL_WINDOW_OPENGL from phone screen window")
 
         context_start = block.find("    /* Create OpenGL context */")
-        context_end = block.find("\n\n    // If specified, try best possible settings.", context_start)
+        context_end = block.find("\n    return PScreenSurface;", context_start)
         require(context_start >= 0 and context_end > context_start,
                 "Could not isolate the SDL OpenGL context creation block")
         original_context = block[context_start:context_end]
