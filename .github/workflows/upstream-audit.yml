@@ -1,4 +1,4 @@
-name: Upstream portability audit
+name: Upstream and Android reference audit
 
 on:
   workflow_dispatch:
@@ -17,14 +17,14 @@ permissions:
 
 jobs:
   audit:
-    name: Inspect upstream build requirements
+    name: Inspect engine portability and Android phone gaps
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out porting workspace
         uses: actions/checkout@v4
 
-      - name: Check out upstream Speed Dreams source
+      - name: Check out desktop upstream source
         uses: actions/checkout@v4
         with:
           repository: argos-research/speed-dreams
@@ -32,13 +32,26 @@ jobs:
           path: upstream
           fetch-depth: 1
 
-      - name: Run source portability audit
+      - name: Check out Android VR reference
+        uses: actions/checkout@v4
+        with:
+          repository: SgtBilko76/SpeedDreams-VR
+          ref: v0.10.0-beta
+          path: android-reference
+          fetch-depth: 1
+
+      - name: Audit classic upstream portability
         run: bash scripts/audit_upstream.sh upstream reports/android-portability-audit.md
 
-      - name: Upload audit report
+      - name: Audit Android reference for phone compatibility
+        run: bash scripts/audit_android_reference.sh android-reference reports/android-reference-audit.md
+
+      - name: Upload audit reports
         uses: actions/upload-artifact@v4
         with:
-          name: speed-dreams-android-portability-audit
-          path: reports/android-portability-audit.md
+          name: speed-dreams-android-port-audits
+          path: |
+            reports/android-portability-audit.md
+            reports/android-reference-audit.md
           if-no-files-found: error
           retention-days: 30
