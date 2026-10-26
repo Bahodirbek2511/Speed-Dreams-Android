@@ -91,10 +91,10 @@ jobs:
           # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
           "$BT_DIR/apksigner" sign --verbose \
+            --min-sdk-version 29 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled false \
-            --min-sdk-version 29 \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
             --ks-pass pass:android \
