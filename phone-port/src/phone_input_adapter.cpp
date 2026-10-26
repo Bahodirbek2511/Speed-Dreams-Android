@@ -1,6 +1,7 @@
 #include "phone_input_adapter.h"
 #include "phone_controls.h"
 #include "vr_events.h"
+#include <SDL.h>
 #include <SDL_keycode.h>
 #include <GL/gl.h>
 #include <algorithm>
@@ -55,6 +56,42 @@ extern "C" void SDPhoneUpdateInput(int racing)
     int width=0,height=0;
     SDPhoneGetSurfaceSize(&width,&height);
     gLastInput=gControls.update(width,height,racing!=0);
+
+#ifdef SD_PHONE_UPSTREAM_MAIN
+    // Public upstream main consumes SDL events, not the VR overlay's private queue.
+    for(const auto& event:gLastInput.menuEvents) {
+        SDL_Event queued{};
+        if(event.type==sdphone::MenuEventType::Motion) {
+            queued.type=SDL_MOUSEMOTION;
+            queued.motion.x=event.x;
+            queued.motion.y=event.y;
+            queued.motion.state=event.button ? SDL_BUTTON_LMASK : 0;
+        } else {
+            queued.type=(event.type==sdphone::MenuEventType::ButtonDown)
+                ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+            queued.button.button=SDL_BUTTON_LEFT;
+            queued.button.state=(event.type==sdphone::MenuEventType::ButtonDown)
+                ? SDL_PRESSED : SDL_RELEASED;
+            queued.button.x=event.x;
+            queued.button.y=event.y;
+        }
+        SDL_PushEvent(&queued);
+    }
+    for(const auto action:gLastInput.actionKeys) {
+        const SDL_Keycode key=action==sdphone::ActionKey::Pause ? SDLK_ESCAPE : SDLK_F2;
+        SDL_Event down{};
+        down.type=SDL_KEYDOWN;
+        down.key.state=SDL_PRESSED;
+        down.key.repeat=0;
+        down.key.keysym.sym=key;
+        SDL_PushEvent(&down);
+        SDL_Event up{};
+        up.type=SDL_KEYUP;
+        up.key.state=SDL_RELEASED;
+        up.key.keysym.sym=key;
+        SDL_PushEvent(&up);
+    }
+#else
     for(const auto& event:gLastInput.menuEvents) {
         if(event.type==sdphone::MenuEventType::Motion) VrQueueMouseMotion(event.x,event.y,0);
         else if(event.type==sdphone::MenuEventType::ButtonDown) VrQueueMouseButton(event.button,1,event.x,event.y);
@@ -64,6 +101,7 @@ extern "C" void SDPhoneUpdateInput(int racing)
         const int key=action==sdphone::ActionKey::Pause ? SDLK_ESCAPE : SDLK_F2;
         VrQueueKey(key,1,0,0); VrQueueKey(key,0,0,0);
     }
+#endif
 }
 
 extern "C" int VrJoyRead(int index,int* buttons,float* axes)
