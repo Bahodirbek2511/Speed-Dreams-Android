@@ -195,6 +195,37 @@ done
 python3 "$ROOT/phone-port/tools/apply_phone_port.py" \
     --reference-root "$VR" --engine-root "$ENGINE"
 
+# Android NDK does not expose glibc's pthread_setaffinity_np(). CPU affinity
+# is an optional desktop optimization; skip that block on Android.
+python3 - "$ENGINE/src/libs/tgf/linuxspec.cpp" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+needle = "if (pthread_setaffinity_np("
+start = s.find(needle)
+if start < 0:
+    if "#if !defined(__ANDROID__) // SD phone port: pthread affinity" not in s:
+        raise SystemExit("Could not locate pthread_setaffinity_np in linuxspec.cpp")
+else:
+    brace = s.find("{", start)
+    if brace < 0:
+        raise SystemExit("Could not locate pthread affinity block opening brace")
+    depth = 0
+    end = -1
+    for i in range(brace, len(s)):
+        if s[i] == "{": depth += 1
+        elif s[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end < 0:
+        raise SystemExit("Could not locate pthread affinity block closing brace")
+    s = s[:start] + "#if !defined(__ANDROID__) // SD phone port: pthread affinity\\n" + s[start:end] + "\\n#endif\\n" + s[end:]
+    p.write_text(s)
+PY
+
 echo "Android source/dependency lock:"
 cat "$MANIFEST"
 echo "WORK=$WORK"
