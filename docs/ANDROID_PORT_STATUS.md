@@ -1,24 +1,36 @@
-# Android port status
+# Android phone-port status
 
-## What is automated now
+Last reviewed: 2026-10-26
 
-The Upstream portability audit GitHub Actions workflow checks out the upstream source and produces a report about its build system, desktop dependencies, and Android-specific files. It runs on relevant pushes, weekly, or manually.
+## Current state
 
-## What it does not do
+- Redmi-compatible phone APK: **not built**
+- Native Android engine source available as a reference: **yes, through SpeedDreams-VR**
+- Native Android build in this repository: **not attempted/successfully reproduced yet**
+- Install/start/race tested on Redmi A1+: **no**
+- The existing upstream portability audit: **passes**, but it does not compile the game or create an APK.
 
-It does not compile Speed Dreams for Android and does not generate an APK. An APK containing only an empty activity or demo renderer would not be the requested game, so this repository will not label such a file as Speed Dreams.
+## Important discovery: an Android VR port already exists
 
-## Technical blockers to resolve
+[SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR) is a separate Android/ARM64 port of Speed Dreams 2.4. Its published v0.10.0-beta release includes Speeddreams.0.10.0-beta.apk (232,674,984 bytes, published 2026-10-20). It is designed for Meta Quest/Pico headsets, not ordinary Android phones.
 
-1. Upstream Speed Dreams uses a legacy CMake build and has documented dependencies including SDL, PLIB, OpenAL, ENet, and optional OpenSceneGraph. Desktop libraries cannot be assumed to work with Android NDK.
-2. Android requires a supported rendering path, native activity/lifecycle integration, touch controls, storage/audio handling, and packaging of the actual game assets.
-3. Assets may have separate licenses. Only content whose license permits redistribution should be included.
-4. The Redmi A1+ (2 GB RAM, PowerVR GE8320) needs real-device testing. A CI build alone cannot prove playable performance.
+Evidence from its source:
+- android/app/build.gradle uses arm64-v8a, Android NDK 27.2.12479018, minSdk 29, and OpenXR.
+- android/app/src/main/AndroidManifest.xml sets android.hardware.vr.headtracking to required="true", marks the app vr_only, and declares headset-specific launch categories/devices.
+- CMakeLists.txt requires the OpenXR loader and compiles src/vr/sd_vr.cpp, whose native frame loop owns the OpenXR session.
+- src/vr/vr_input.cpp maps steering/throttle/brake and menu interaction from headset controllers.
 
-## How to run the audit
+These facts make it a valuable engineering reference, but simply changing its package name or manifest does not create a working phone port.
 
-Open the repository Actions tab, choose Upstream portability audit, and press Run workflow. The generated Markdown report is attached to the completed workflow run as an artifact.
+## Work still required for Redmi A1+
+
+1. Create a **non-OpenXR** Android surface/render loop using GLES and one on-screen camera view.
+2. Route Speed Dreams drawing and game lifecycle to that surface without relying on an OpenXR runtime/session.
+3. Add touch-driven menu mouse events and a virtual driving controller (steering, throttle, brake, gear/reverse, camera).
+4. Select and pin a reproducible source/dependency set; the VR port relies on companion source/data and locally supplied third-party dependencies, so a clean CI build must first recreate that dependency layout.
+5. Tune the graphics preset and memory footprint for 2 GB RAM; use compressed/lower-resolution textures and modest draw distance/effects.
+6. Build/sign a real APK, inspect its ABI and manifest, then install and test on Redmi A1+ through a full race.
 
 ## Definition of done
 
-The project is complete only when a real game APK is built, installs on the target Android version, starts the game, loads a track, accepts touch input, and completes a race without crashing. Performance and memory use must then be measured on the Redmi A1+.
+The work is not complete until a phone-target APK installs on Android 12 Go, starts without OpenXR/headset services, displays the menus and track, accepts touch controls, completes a race, and has measured memory/frame-rate results on Redmi A1+.
