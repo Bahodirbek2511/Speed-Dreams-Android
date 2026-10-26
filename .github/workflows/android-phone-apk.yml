@@ -1,4 +1,4 @@
-name: Build Speed Dreams phone APK (Redmi A1+ ARMv7)
+name: Build Speed Dreams phone APK (Redmi A1+ universal ARM)
 
 on:
   workflow_dispatch:
@@ -75,7 +75,7 @@ jobs:
           APK="$VR/android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           mkdir -p dist
-          cp "$APK" dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
+          cp "$APK" dist/Speed-Dreams-Mobile-Redmi-Universal.apk
           file dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
 
       - name: Verify package ABI, manifest, and native libraries
@@ -84,6 +84,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
           unzip -l "$APK" > "$RUNNER_TEMP/apk-list.txt"
           grep -q "lib/armeabi-v7a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
+          grep -q "lib/arm64-v8a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
           grep -q "assets/gamedata.zip" "$RUNNER_TEMP/apk-list.txt"
           unzip -p "$APK" AndroidManifest.xml > "$RUNNER_TEMP/AndroidManifest.bin"
           if strings "$RUNNER_TEMP/AndroidManifest.bin" | grep -qi "org.khronos.openxr.permission.OPENXR_SYSTEM"; then
@@ -104,17 +105,18 @@ jobs:
           SUMS="dist/SHA256SUMS.txt"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
+            gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true
           else
             gh release create "$TAG" "$APK" "$SUMS" \
-              --title "Speed Dreams Android — Redmi A1+ (ARMv7)" \
-              --notes "Build for 32-bit ARM Android devices such as Redmi A1+. APK was built by GitHub Actions; device-level runtime testing is not yet confirmed."
+              --title "Speed Dreams Android — Redmi A1+ (Universal ARM)" \
+              --notes "Universal ARM APK contains arm64-v8a and armeabi-v7a native libraries for broader Redmi A1+ firmware compatibility. Built by GitHub Actions; device-level runtime testing is not yet confirmed."
           fi
 
       - name: Upload phone APK and source/build reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: speed-dreams-mobile-redmi-armv7-apk
+          name: speed-dreams-mobile-redmi-universal-apk
           path: |
             dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
             dist/SHA256SUMS.txt
