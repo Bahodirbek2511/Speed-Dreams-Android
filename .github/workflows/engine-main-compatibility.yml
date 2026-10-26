@@ -1,0 +1,36 @@
+name: Inspect upstream engine hooks for phone port
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/inspect_upstream_phone_hooks.sh"
+      - ".github/workflows/engine-main-compatibility.yml"
+  pull_request:
+    paths:
+      - "scripts/inspect_upstream_phone_hooks.sh"
+      - ".github/workflows/engine-main-compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-main-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out porting workspace
+        uses: actions/checkout@v4
+
+      - name: Inspect public Speed Dreams engine branch
+        run: bash scripts/inspect_upstream_phone_hooks.sh reports/engine-main-compatibility.md
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-main-phone-compatibility
+          path: reports/engine-main-compatibility.md
+          if-no-files-found: warn
+          retention-days: 14
