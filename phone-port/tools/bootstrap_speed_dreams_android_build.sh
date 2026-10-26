@@ -55,12 +55,12 @@ printf 'SpeedDreams-VR\tv0.10.0-beta\t%s\n' "$(git -C "$VR" rev-parse HEAD)" >> 
 
 if [[ ! -d "$ENGINE/.git" ]]; then
     git -c advice.detachedHead=false clone --depth 1 --recurse-submodules --shallow-submodules \
-        --single-branch --branch main \
+        --single-branch --branch quest-port \
         https://forge.a-lec.org/speed-dreams/speed-dreams-code.git "$ENGINE"
 else
     git -C "$ENGINE" submodule update --init --depth 1
 fi
-printf 'speed-dreams-code\tmain\t%s\n' "$(git -C "$ENGINE" rev-parse HEAD)" >> "$MANIFEST"
+printf 'speed-dreams-code\tquest-port\t%s\n' "$(git -C "$ENGINE" rev-parse HEAD)" >> "$MANIFEST"
 git -C "$ENGINE" submodule status --recursive | tee "$WORK/engine-submodules.txt"
 
 for item in \
@@ -81,6 +81,24 @@ for item in \
     IFS='|' read -r name url ref marker <<< "$item"
     clone_pinned "$TP/$name" "$url" "$ref" "$marker"
 done
+
+# Speed Dreams VR vendors a small, Android-patched subset of PLIB. Fetch the
+# upstream source archive and place it at the exact path expected by cmake/plib.cmake.
+PLIB="$TP/plib"
+if [[ ! -f "$PLIB/src/util/ul.cxx" ]]; then
+    tmp_plib="$WORK/plib-1.8.5.tar.gz"
+    curl --fail --location --retry 3 \
+        "https://downloads.sourceforge.net/project/plib/PLIB/1.8.5/plib-1.8.5.tar.gz" \
+        -o "$tmp_plib"
+    mkdir -p "$PLIB"
+    tar -xzf "$tmp_plib" --strip-components=1 -C "$PLIB"
+fi
+if [[ ! -f "$PLIB/src/util/ul.cxx" || ! -f "$PLIB/src/sg/sg.cxx" ]]; then
+    echo "PLIB 1.8.5 archive did not contain the expected source layout" >&2
+    find "$PLIB" -maxdepth 4 -type f | head -50 >&2 || true
+    exit 5
+fi
+printf 'plib\t1.8.5-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
 for required in \
     "$ENGINE/src/libs/tgf/tgf.h" \
