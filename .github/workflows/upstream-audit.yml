@@ -24,6 +24,9 @@ jobs:
       - name: Check out porting workspace
         uses: actions/checkout@v4
 
+      - name: Check repository health and status consistency
+        run: bash scripts/check_repository_health.sh .
+
       - name: Check out desktop upstream source
         uses: actions/checkout@v4
         with:
