@@ -28,7 +28,7 @@ grep -nE "CMAKE_MINIMUM_REQUIRED|PROJECT|ADD_SUBDIRECTORY" "$SRC_DIR/CMakeLists.
   echo "## Dependency references in source/build files"
   echo
   for pattern in "SDL|SDL.h" "PLIB|plib|ssggraph" "OpenSceneGraph|osggraph" "OpenGL|GLX" "OpenAL" "ENet|enet" "FreeType|freetype" "ANDROID|android_app"; do
-    count="$(grep -RIE --include=CMakeLists.txt --include="*.cmake" --include="*.h" --include="*.hpp" --include="*.c" --include="*.cpp" --exclude-dir=.git -l "$pattern" "$SRC_DIR" 2>/dev/null | wc -l)"
+    count="$( (grep -RIE --include=CMakeLists.txt --include="*.cmake" --include="*.h" --include="*.hpp" --include="*.c" --include="*.cpp" --exclude-dir=.git -l "$pattern" "$SRC_DIR" 2>/dev/null || true) | wc -l)"
     printf -- "- %s: %s matching files\n" "$pattern" "$count"
   done
   echo
