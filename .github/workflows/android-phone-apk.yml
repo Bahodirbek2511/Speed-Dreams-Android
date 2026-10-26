@@ -91,14 +91,22 @@ jobs:
           # Gradle produced a v2-only APK despite both signing DSL properties.
           # Re-sign the final deliverable explicitly before any final verification.
           "$BT_DIR/apksigner" sign --verbose \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled false \
+            --min-sdk-version 29 \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
             --ks-pass pass:android \
             --key-pass pass:android \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
             --out "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
             "$APK"
+          # Fail here if the signer did not really emit both requested schemes.
+          "$BT_DIR/apksigner" verify --verbose \
+            "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" \
+            | tee "$RUNNER_TEMP/preflight-apksigner-verify.txt"
+          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
+          grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/preflight-apksigner-verify.txt"
           mv "$RUNNER_TEMP/Speed-Dreams-Mobile-Redmi-Universal-signed.apk" "$APK"
 
       - name: Verify APK structure, manifest, signatures, and native ABIs
