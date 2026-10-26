@@ -12,6 +12,11 @@ public final class PhoneNative {
     public static final int TOUCH_UP = 2;
     public static final int TOUCH_CANCEL = 3;
 
+    /* SDL keycodes used by the Android Speed Dreams GUI event bridge. */
+    public static final int KEY_ESCAPE = 27;
+    public static final int KEY_RETURN = 13;
+    public static final int KEY_F2 = (1 << 30) | 59;
+
     static {
         System.loadLibrary("sdphoneinput");
     }
@@ -25,4 +30,5 @@ public final class PhoneNative {
     public static native void setButton(int index, boolean pressed);
     public static native void setViewport(int width, int height);
     public static native void queueMenuTouch(int action, float normalizedX, float normalizedY);
+    public static native void queueKey(int keycode, boolean down);
 }
