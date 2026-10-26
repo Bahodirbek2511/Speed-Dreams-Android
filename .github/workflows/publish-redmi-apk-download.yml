@@ -1,0 +1,56 @@
+name: Publish Redmi A1+ APK as a direct browser download
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-redmi-apk-download.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-existing-apk:
+    name: Publish verified ARMv7 APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download the successful ARMv7 build artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 12658559135
+          repository: ${{ github.repository }}
+          run-id: 40340455467
+          github-token: ${{ github.token }}
+          path: bundle
+
+      - name: Prepare APK and checksum
+        run: |
+          set -euo pipefail
+          SOURCE_APK="$(find bundle -type f -name 'Speed-Dreams-Mobile-Redmi-ARMv7.apk' -print -quit)"
+          test -n "$SOURCE_APK"
+          mkdir -p dist
+          cp "$SOURCE_APK" dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk
+          sha256sum dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk > dist/SHA256SUMS.txt
+          ls -lh dist
+
+      - name: Publish permanent download on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="redmi-a1plus-armv7"
+          APK="dist/Speed-Dreams-Mobile-Redmi-ARMv7.apk"
+          SUMS="dist/SHA256SUMS.txt"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$SUMS" --clobber
+          else
+            gh release create "$TAG" "$APK" "$SUMS" \
+              --title "Speed Dreams Android — Redmi A1+ (ARMv7)" \
+              --notes "Android APK built for 32-bit ARM devices such as Redmi A1+. Build artifact came from successful GitHub Actions run #47. Device-level runtime testing is not yet confirmed."
+          fi
