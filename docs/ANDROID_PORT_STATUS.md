@@ -4,35 +4,37 @@ Last reviewed: 2026-10-26
 
 ## Current state
 
-- Redmi-compatible game APK: **not built**
-- Android ARM64 input/JNI library: **built and symbol-checked in CI**
-- Cross-platform touch-control logic: **host-tested**
-- Integration patcher: **fixture-tested; not yet validated on the real engine checkout**
-- Full native engine build: **blocked by missing engine source branch**
-- Install/start/race tested on Redmi A1+: **no**
+- Universal native engine APK with bundled data: **built in CI**
+- Both ARM native ABI sets (`arm64-v8a`, `armeabi-v7a`): **included and checked in CI**
+- APK ZIP and v2 signature on the previous candidate: **valid**
+- Earlier APK installer attempts on Redmi A1+: **user-reported failure**
+- Installer hardening in the current revision: **application ID isolation, stable development signing identity, v1+v2 signing, GLES 2.0 feature minimum, full package checks**
+- Actual install/start/race test on Redmi A1+: **not yet performed successfully**
 
-## Existing Android VR reference
+The current work is more than the separate input-only library, but it remains experimental until a physical phone accepts the APK and a full race is completed.
 
-[SpeedDreams-VR](https://github.com/SgtBilko76/SpeedDreams-VR) ports Speed Dreams 2.4 to Android ARM64 for standalone Meta Quest/Pico headsets. Its Android build targets arm64-v8a with NDK 27.2.12479018 and minSdk 29, but its manifest requires VR head-tracking and its native startup requires OpenXR. It cannot be made phone-ready by changing only the manifest.
+## What the patcher does
 
-The VR project expects an adjacent speed-dreams-code checkout on branch quest-port. The [automated source probe](https://github.com/Bahodirbek2511/Speed-Dreams-Android/actions/runs/40299728191) found that the public engine remote no longer advertises this branch. The exact engine modifications and native dependency set required by the VR reference therefore cannot currently be reproduced from the listed public refs alone.
+The CI build uses the public [SpeedDreams-VR v0.10.0-beta reference](https://github.com/SgtBilko76/SpeedDreams-VR) with a pinned/revision-recorded public Speed Dreams engine checkout. The phone patch replaces OpenXR startup with an Android EGL/GLES surface, adapts the public engine's screen/GUI code, simplifies the render loop to one view, and integrates touch events and driving overlays.
 
-## Phone input work completed
+Each build records the resolved source and dependency revisions. Third-party dependencies are checked out from pinned versions. The public engine branch is recorded per run rather than treated as an immutable revision.
 
-- Thread-safe phone input state for steering, throttle, brake and button bits.
-- Multi-touch menu tap/move/release queue with bounded storage.
-- JNI declarations and an Android Canvas control overlay.
-- Android arm64-v8a native input/JNI shared-library build and export-symbol validation in CI.
-- A separate experimental EGL/GLES phone backend and patcher are present under phone-port/, with host tests and isolated source-fixture tests. They have not yet been compiled against the real Speed Dreams engine.
+## Installer-focused changes
 
-## Remaining implementation and verification
+- `applicationId` is `com.speeddreams.mobile`, independent of upstream VR APKs and earlier experimental package identity.
+- Both ARM native-library variants are packed into one APK.
+- The APK is signed with both v1 and v2; CI verifies the resulting signatures and uses a stable development key to avoid mismatched-signature updates.
+- The manifest GLES feature requirement is lowered to GLES 2.0, because the phone EGL code attempts ES3 then ES2.
+- CI checks package name, version, min/target SDK, native ABI list, ZIP alignment and bundled data archive integrity.
 
-1. Recover or recreate the compatible Android engine source and pin every dependency.
-2. Choose one input implementation for the integrated build; do not link both prototype adapters because they export overlapping JNI, joystick, and event symbols.
-3. Integrate touch input polling into the engine's event loop and connect VrJoyRead to the full game.
-4. Build and verify the non-OpenXR EGL/GLES surface, mono rendering path and race loop against the actual engine sources.
-5. Build/sign a full game APK with legally redistributable data, then test menus, track load, driving, audio, pause/resume and a complete race on Redmi A1+.
+The stable key is a public development key only. It must never be used for production/Google Play releases; see [signing-key warning](../phone-port/signing/README.md).
 
-## Definition of done
+## Remaining acceptance gates
 
-The work is complete only when the full game starts without headset/OpenXR services, displays a track, accepts touch controls, completes a race on Redmi A1+, and has measured memory and frame-rate results. The standalone input-library artifact does not satisfy this definition.
+1. Install from the direct GitHub Release APK on Redmi A1+.
+2. Confirm the first-run storage permission workflow.
+3. Verify data extraction, menu interaction, track load, sound and on-screen controls.
+4. Finish a race.
+5. Measure memory use and sustained performance on the device.
+
+Do not call the port playable until the physical Redmi A1+ tests pass.
