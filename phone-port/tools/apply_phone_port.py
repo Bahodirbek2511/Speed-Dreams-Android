@@ -39,7 +39,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def patch_cmake(path: Path) -> str:
+def patch_cmake(path: Path, upstream_main: bool = False) -> str:
     text = read(path)
     dollar = chr(36)
     vdir = dollar + "{VR_DIR}"
@@ -108,6 +108,12 @@ def patch_cmake(path: Path) -> str:
             '    target_compile_definitions(sd_headers INTERFACE SD_PHONE=1)\n'
             'endif()',
             "Speed Dreams module CMake include")
+    if upstream_main and "SD_PHONE_UPSTREAM_MAIN=1" not in text:
+        marker = "    target_compile_definitions(sd_headers INTERFACE SD_PHONE=1)"
+        text = replace_once(text, marker,
+            marker + '\n    target_compile_definitions(sdvr PRIVATE SD_PHONE_UPSTREAM_MAIN=1)'
+            + '\n    target_compile_definitions(sd_headers INTERFACE SD_PHONE_UPSTREAM_MAIN=1)',
+            "upstream-main phone compatibility definitions")
 
     if "OpenXR::openxr_loader" in text and "SDVR_OPTIONAL_LIBS" not in text:
         text = replace_once(text, "target_link_libraries(sdvr PRIVATE",
@@ -281,7 +287,20 @@ def patch_single_eye_loop(engine_root: Path) -> str:
     path = engine_root / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp"
     text = read(path)
     calls = list(re.finditer(r"VrRaceEyeBegin\s*\(\s*(\w+)\s*\)", text))
-    require(calls, "Engine source lacks VrRaceEyeBegin hooks; wrong source branch?")
+
+    # The public upstream main branch has no VR eye hooks. Its race callback
+    # is mono and ends at GfuiSwapBuffers(), so update touch controls there.
+    if not calls:
+        if "SDPhoneUpdateInput(1);" in text:
+            return text
+        marker = re.compile(r"(static\s+void\s+rmRedisplay\s*\(\s*\)\s*\{)")
+        text, count = marker.subn(
+            r"\1\n#ifdef SD_PHONE_UPSTREAM_MAIN\n\tSDPhoneUpdateInput(1);\n#endif",
+            text, count=1)
+        require(count == 1,
+                "Engine has no VR eye hooks and no recognizable rmRedisplay() callback")
+        return text
+
     for call in reversed(calls):
         var = re.escape(call.group(1))
         loop_re = re.compile(r"for\s*\(\s*(?:int|unsigned\s+int)\s+" + var +
@@ -294,6 +313,124 @@ def patch_single_eye_loop(engine_root: Path) -> str:
             text = text[:match.start(1)] + "1" + text[match.end(1):]
     require(not re.search(r"for\s*\(\s*(?:int|unsigned\s+int)\s+eye\s*=\s*0\s*;\s*eye\s*<\s*2", text),
             "A two-eye loop remains in the phone race renderer")
+    return text
+
+
+def patch_guiscreen(path: Path) -> str:
+    """Use the already-current EGL surface instead of creating an SDL GL context."""
+    text = read(path)
+    function_start = text.find("SDL_Surface* gfScrCreateWindow(")
+    function_end = text.find("\nint GfScrGetAttachedDisplays()", function_start)
+    require(function_start >= 0 and function_end > function_start,
+            "Could not locate gfScrCreateWindow() in guiscreen.cpp")
+    block = text[function_start:function_end]
+
+    if "#ifdef SD_PHONE_UPSTREAM_MAIN" not in block:
+        open_brace = block.find("{")
+        require(open_brace >= 0, "Malformed gfScrCreateWindow()")
+        prologue = """
+#ifdef SD_PHONE_UPSTREAM_MAIN
+    int phoneWidth = 0;
+    int phoneHeight = 0;
+    SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight);
+    if (phoneWidth > 0 && phoneHeight > 0) {
+        nWinWidth = phoneWidth;
+        nWinHeight = phoneHeight;
+    }
+    bfVideoMode &= ~SDL_WINDOW_FULLSCREEN;
+#endif
+"""
+        block = block[:open_brace + 1] + prologue + block[open_brace + 1:]
+        block, flags_count = re.subn(
+            r"SDL_WINDOW_HIDDEN\s*\|\s*SDL_WINDOW_OPENGL",
+            "SDL_WINDOW_HIDDEN", block, count=1)
+        require(flags_count == 1,
+                "Could not remove SDL_WINDOW_OPENGL from phone screen window")
+
+        context_start = block.find("    /* Create OpenGL context */")
+        context_end = block.find("\n\n    // If specified, try best possible settings.", context_start)
+        require(context_start >= 0 and context_end > context_start,
+                "Could not isolate the SDL OpenGL context creation block")
+        original_context = block[context_start:context_end]
+        replacement = (
+            "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            "    // sd_phone.cpp owns the current EGL/GLES context on this thread.\n"
+            "    GLContext = NULL;\n"
+            "#else\n" + original_context + "\n#endif"
+        )
+        block = block[:context_start] + replacement + block[context_end:]
+        text = text[:function_start] + block + text[function_end:]
+
+    resizable_marker = "    GfScrResizable = GfScrGetResizable();"
+    if resizable_marker in text:
+        text = replace_once(text, resizable_marker,
+            "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            "    GfScrResizable = false;\n"
+            "#else\n"
+            "    GfScrResizable = GfScrGetResizable();\n"
+            "#endif",
+            "phone screen resize-mode selection")
+
+    shutdown_context = (
+        "    SDL_GL_MakeCurrent(GfuiWindow,GLContext);\n"
+        "    SDL_GL_DeleteContext(GLContext);\n"
+        "    GLContext = NULL;"
+    )
+    if shutdown_context in text:
+        text = replace_once(text, shutdown_context,
+            "#ifndef SD_PHONE_UPSTREAM_MAIN\n"
+            "    SDL_GL_MakeCurrent(GfuiWindow,GLContext);\n"
+            "    SDL_GL_DeleteContext(GLContext);\n"
+            "#endif\n"
+            "    GLContext = NULL;",
+            "phone screen shutdown context handling")
+
+    require("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)" in text,
+            "Phone EGL surface size was not wired into screen initialization")
+    return text
+
+
+def patch_gui(path: Path) -> str:
+    """Route GUI/menu input and swapping through the phone EGL surface."""
+    text = read(path)
+    display_re = re.compile(r"(void\s+GfuiDisplay\s*\(void\)\s*\{\s*)(GfuiRedraw\s*\(\s*\)\s*;)")
+    if "SDPhoneUpdateInput(0);" not in text:
+        text, count = display_re.subn(
+            r"\1#ifdef SD_PHONE_UPSTREAM_MAIN\n\tSDPhoneUpdateInput(0);\n#endif\n\t\2",
+            text, count=1)
+        require(count == 1, "Could not locate GfuiDisplay() for phone menu input")
+
+    swap_re = re.compile(r"(void\s+GfuiSwapBuffers\s*\(void\)\s*\{\s*)SDL_GL_SwapWindow\s*\(\s*GfuiWindow\s*\)\s*;")
+    if "SDPhonePresent();" not in text:
+        replacement = (
+            r"\1#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            "\tint phoneWidth = 0, phoneHeight = 0;\n"
+            "\tSDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight);\n"
+            "\tSDPhoneDrawControls(phoneWidth, phoneHeight);\n"
+            "\tSDPhonePresent();\n"
+            "#else\n"
+            "\tSDL_GL_SwapWindow(GfuiWindow);\n"
+            "#endif"
+        )
+        text, count = swap_re.subn(replacement, text, count=1)
+        require(count == 1, "Could not locate GfuiSwapBuffers() for EGL presentation")
+
+    proto = (
+        "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+        "extern \"C\" void SDPhoneUpdateInput(int racing);\n"
+        "extern \"C\" void SDPhoneDrawControls(int width, int height);\n"
+        "extern \"C\" void SDPhoneGetSurfaceSize(int* width, int* height);\n"
+        "extern \"C\" int SDPhonePresent(void);\n"
+        "#endif\n\n"
+    )
+    if 'extern "C" void SDPhoneUpdateInput(int racing);' not in text:
+        marker = re.search(r"(?m)^void\s+GfuiDisplay\s*\(void\)", text)
+        require(marker is not None, "Could not find a safe declaration insertion point in gui.cpp")
+        text = text[:marker.start()] + proto + text[marker.start():]
+
+    require("SDPhonePresent();" in text, "Phone EGL presentation hook is missing")
+    require("SDL_GL_SwapWindow(GfuiWindow);" in text,
+            "Desktop SDL swap path must remain available outside phone builds")
     return text
 
 
@@ -310,16 +447,29 @@ def apply(reference_root: Path, engine_root: Path) -> list[str]:
     for name in PHONE_FILES:
         require((SOURCE_ROOT / name).is_file(), f"Phone source missing: {name}")
 
+    race_path = engine_root / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp"
+    race_source = read(race_path)
+    upstream_main = "VrRaceEyeBegin" not in race_source
+
     patches = [
-        (reference_root / "CMakeLists.txt", patch_cmake),
+        (reference_root / "CMakeLists.txt",
+         lambda path: patch_cmake(path, upstream_main=upstream_main)),
         (reference_root / "android/app/build.gradle", patch_gradle),
         (reference_root / "android/app/src/main/AndroidManifest.xml", patch_manifest),
         (reference_root / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java", patch_activity),
         (reference_root / "android/app/src/main/java/com/speeddreamsvr/SDVRLib.java", patch_lib),
         (reference_root / "android/app/src/main/res/values/strings.xml", patch_app_name),
-        (engine_root / "src/modules/userinterface/legacymenu/racescreens/racerunningmenus.cpp",
-         lambda path: patch_single_eye_loop(engine_root)),
+        (race_path, lambda path: patch_single_eye_loop(engine_root)),
     ]
+    if upstream_main:
+        screen_path = engine_root / "src/libs/tgfclient/guiscreen.cpp"
+        gui_path = engine_root / "src/libs/tgfclient/gui.cpp"
+        require(screen_path.is_file(), "Public upstream source lacks src/libs/tgfclient/guiscreen.cpp")
+        require(gui_path.is_file(), "Public upstream source lacks src/libs/tgfclient/gui.cpp")
+        patches.extend([
+            (screen_path, patch_guiscreen),
+            (gui_path, patch_gui),
+        ])
     replacements = [(path, patcher(path)) for path, patcher in patches]
     changed = []
     target_dir = reference_root / "src/vr/phone"
