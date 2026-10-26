@@ -47,20 +47,14 @@ clone_pinned() {
 
 : > "$MANIFEST"
 
-if [[ ! -d "$VR/.git" ]]; then
-    git -c advice.detachedHead=false clone --depth 1 --single-branch --branch v0.10.0-beta \
-        https://github.com/SgtBilko76/SpeedDreams-VR.git "$VR"
-fi
-printf 'SpeedDreams-VR\tv0.10.0-beta\t%s\n' "$(git -C "$VR" rev-parse HEAD)" >> "$MANIFEST"
-
-if [[ ! -d "$ENGINE/.git" ]]; then
-    git -c advice.detachedHead=false clone --depth 1 --recurse-submodules --shallow-submodules \
-        --single-branch --branch main \
-        https://forge.a-lec.org/speed-dreams/speed-dreams-code.git "$ENGINE"
-else
-    git -C "$ENGINE" submodule update --init --depth 1
-fi
-printf 'speed-dreams-code\tmain\t%s\n' "$(git -C "$ENGINE" rev-parse HEAD)" >> "$MANIFEST"
+# Pin both primary source trees to commits resolved during the last successful
+# full APK build. This prevents a moving public main/tag from silently changing
+# what gets built on the next CI run.
+VR_REF="0c4fe9c23f5e30323f62f75f8b60811795ee9ff3"
+ENGINE_REF="4e29a83bb701f47ade617a9d73e20e736c492e82"
+clone_pinned "$VR" "https://github.com/SgtBilko76/SpeedDreams-VR.git" "$VR_REF" "CMakeLists.txt"
+clone_pinned "$ENGINE" "https://forge.a-lec.org/speed-dreams/speed-dreams-code.git" "$ENGINE_REF" "src/libs/tgf/tgf.h"
+git -C "$ENGINE" submodule update --init --depth 1 --recursive
 git -C "$ENGINE" submodule status --recursive | tee "$WORK/engine-submodules.txt"
 
 for item in \
@@ -91,6 +85,11 @@ if [[ ! -f "$PLIB/src/util/ul.cxx" ]]; then
     curl --fail --location --retry 3 \
         "https://sourceforge.net/projects/plib/files/plib-1.8.5-rc1.tar.gz/download" \
         -o "$tmp_plib"
+    PLIB_SHA256="d421a3c84517b4bfc8c6402887c74984ec57c12bc85f2dc2729de3ec4cdcdbe4"
+    echo "$PLIB_SHA256  $tmp_plib" | sha256sum --check --status || {
+        echo "PLIB archive checksum mismatch; refusing to build from unverified source" >&2
+        exit 7
+    }
     mkdir -p "$PLIB"
     tar -xzf "$tmp_plib" --strip-components=1 -C "$PLIB"
 fi
