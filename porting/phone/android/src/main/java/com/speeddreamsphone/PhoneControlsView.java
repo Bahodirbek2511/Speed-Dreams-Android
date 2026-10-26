@@ -123,7 +123,7 @@ public final class PhoneControlsView extends View {
         int id = event.getPointerId(pointerIndex);
         int zone = zoneAt(event.getX(pointerIndex), event.getY(pointerIndex));
         pointerZones.put(id, zone);
-        applyPointer(event, pointerIndex, zone, true);
+        applyPointer(event, pointerIndex, zone, true, true);
 
         if (zone == ZONE_MENU && menuPointerId == -1) {
             menuPointerId = id;
@@ -135,7 +135,7 @@ public final class PhoneControlsView extends View {
         for (int i = 0; i < event.getPointerCount(); i++) {
             int id = event.getPointerId(i);
             int zone = pointerZones.get(id, ZONE_MENU);
-            applyPointer(event, i, zone, true);
+            applyPointer(event, i, zone, true, false);
             if (zone == ZONE_MENU && id == menuPointerId) {
                 queueMenu(PhoneNative.TOUCH_MOVE, event.getX(i), event.getY(i));
             }
@@ -145,7 +145,7 @@ public final class PhoneControlsView extends View {
     private void endPointer(MotionEvent event, int pointerIndex, boolean cancelled) {
         int id = event.getPointerId(pointerIndex);
         int zone = pointerZones.get(id, ZONE_MENU);
-        applyPointer(event, pointerIndex, zone, false);
+        applyPointer(event, pointerIndex, zone, false, true);
         if (zone == ZONE_MENU && id == menuPointerId) {
             queueMenu(cancelled ? PhoneNative.TOUCH_CANCEL : PhoneNative.TOUCH_UP,
                     event.getX(pointerIndex), event.getY(pointerIndex));
@@ -154,7 +154,7 @@ public final class PhoneControlsView extends View {
         pointerZones.delete(id);
     }
 
-    private void applyPointer(MotionEvent event, int pointerIndex, int zone, boolean pressed) {
+    private void applyPointer(MotionEvent event, int pointerIndex, int zone, boolean pressed, boolean emitEdge) {
         float x = event.getX(pointerIndex);
         float pressure = clamp01(event.getPressure(pointerIndex));
         if (!pressed) pressure = 0.0f;
@@ -176,9 +176,9 @@ public final class PhoneControlsView extends View {
                 if (zone >= ZONE_BUTTON_BASE) {
                     int button = zone - ZONE_BUTTON_BASE;
                     if (button == BUTTON_CAMERA) {
-                        PhoneNative.queueKey(PhoneNative.KEY_F2, pressed);
+                        if (emitEdge) PhoneNative.queueKey(PhoneNative.KEY_F2, pressed);
                     } else if (button == BUTTON_PAUSE) {
-                        PhoneNative.queueKey(PhoneNative.KEY_ESCAPE, pressed);
+                        if (emitEdge) PhoneNative.queueKey(PhoneNative.KEY_ESCAPE, pressed);
                     } else {
                         PhoneNative.setButton(button, pressed);
                     }
