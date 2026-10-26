@@ -138,9 +138,12 @@ p.write_text(s)
 mdl = p.parent / "ssgLoadMDL_BGLTexture.cxx"
 ms = mdl.read_text()
 old_line = "char *p = strrchr(fname,'_');"
-new_line = "const char *p = strrchr(fname,'_');"
+const_line = "const char *p = strrchr(fname,'_');"
+new_line = "char *p = (char *)strrchr(fname,'_');"
 if old_line in ms:
     ms = ms.replace(old_line, new_line, 1)
+elif const_line in ms:
+    ms = ms.replace(const_line, new_line, 1)
 elif new_line not in ms:
     raise SystemExit("Unexpected PLIB MDL texture loader; refusing unsafe patch")
 mdl.write_text(ms)
