@@ -339,7 +339,7 @@ def patch_guiscreen(path: Path) -> str:
         text = text[:function_marker.start()] + phone_proto + text[function_marker.start():]
         function_start = text.find("SDL_Surface* gfScrCreateWindow(")
 
-    if "#ifdef SD_PHONE_UPSTREAM_MAIN" not in block:
+    if "SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);" in block:
         open_brace = block.find("{")
         require(open_brace >= 0, "Malformed gfScrCreateWindow()")
         prologue = """
@@ -386,8 +386,8 @@ def patch_guiscreen(path: Path) -> str:
                 "    }",
                 1)
         else:
-            require("SD_PHONE_UPSTREAM_MAIN" in block,
-                    "Could not locate desktop fullscreen else branch")
+            require("SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);" not in block,
+                    "Failed to patch desktop fullscreen else branch")
         text = text[:function_start] + block + text[function_end:]
 
     resizable_marker = "    GfScrResizable = GfScrGetResizable();"
