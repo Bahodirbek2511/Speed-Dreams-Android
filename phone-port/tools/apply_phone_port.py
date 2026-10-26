@@ -327,6 +327,18 @@ def patch_guiscreen(path: Path) -> str:
             "Could not locate gfScrCreateWindow() in guiscreen.cpp")
     block = text[function_start:function_end]
 
+    phone_proto = (
+        "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+        'extern "C" void SDPhoneGetSurfaceSize(int* width, int* height);\n'
+        "#endif\n\n"
+    )
+    if 'extern "C" void SDPhoneGetSurfaceSize(int* width, int* height);' not in text:
+        function_marker = re.search(r"(?m)^SDL_Surface\*\s*gfScrCreateWindow\s*\(", text)
+        require(function_marker is not None,
+                "Could not locate gfScrCreateWindow() declaration insertion point")
+        text = text[:function_marker.start()] + phone_proto + text[function_marker.start():]
+        function_start = text.find("SDL_Surface* gfScrCreateWindow(")
+
     if "#ifdef SD_PHONE_UPSTREAM_MAIN" not in block:
         open_brace = block.find("{")
         require(open_brace >= 0, "Malformed gfScrCreateWindow()")
