@@ -132,6 +132,18 @@ if old_include not in s or old_context not in s:
     raise SystemExit("Unexpected PLIB ssg.cxx layout; refusing unsafe patch")
 s = s.replace(old_include, new_include, 1).replace(old_context, new_context, 1)
 p.write_text(s)
+
+# Newer Android Clang treats strrchr's result as const when its input is
+# const-qualified. This PLIB loader only inspects the returned suffix.
+mdl = p.parent / "ssgLoadMDL_BGLTexture.cxx"
+ms = mdl.read_text()
+old_line = "char *p = strrchr(fname,'_');"
+new_line = "const char *p = strrchr(fname,'_');"
+if old_line in ms:
+    ms = ms.replace(old_line, new_line, 1)
+elif new_line not in ms:
+    raise SystemExit("Unexpected PLIB MDL texture loader; refusing unsafe patch")
+mdl.write_text(ms)
 PY
 printf 'plib\t1.8.5-rc1-sourceforge\t%s\n' "$(sha256sum "$WORK/plib-1.8.5-rc1.tar.gz" | cut -d' ' -f1)" >> "$MANIFEST"
 
