@@ -1,11 +1,14 @@
 #include <jni.h>
 
+#include "phone_engine_adapter.h"
 #include "phone_input.h"
+#include "vr_events.h"
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_speeddreamsphone_PhoneNative_resetInput(JNIEnv *, jclass)
 {
     SDPhoneInputReset();
+    SDPhoneEngineResetEvents();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -43,4 +46,11 @@ Java_com_speeddreamsphone_PhoneNative_queueMenuTouch(JNIEnv *, jclass, jint acti
                                                        jfloat normalized_x, jfloat normalized_y)
 {
     SDPhoneInputQueueMenuTouch(action, normalized_x, normalized_y);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_speeddreamsphone_PhoneNative_queueKey(JNIEnv *, jclass, jint keycode,
+                                                 jboolean down)
+{
+    VrQueueKey(keycode, down == JNI_TRUE ? 1 : 0, 0, 0);
 }
