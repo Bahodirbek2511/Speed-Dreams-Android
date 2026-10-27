@@ -54,7 +54,12 @@ jobs:
           ENGINE="$RUNNER_TEMP/sd-port-build/speed-dreams-code"
           export SD_ROOT="$ENGINE"
           python3 "$VR/tools/stage_data.py" --clean
-          test -s "$VR/stage/SpeedDreamsVR/data/config/raceman.xml" || \
+          DATA="$VR/stage/SpeedDreamsVR/data"
+          # GIMP editor source files are not runtime game assets; exclude them from the bundled data.
+          find "$DATA" -type f \( -name '*.xcf' -o -name '*.xcf.bz2' \) -print -delete
+          echo "Staged runtime data size:"
+          du -sh "$DATA"
+          test -s "$DATA/config/raceman.xml" || \
             find "$VR/stage/SpeedDreamsVR" -maxdepth 3 -type f | head -30
 
       - name: Install stable phone development signing key
@@ -80,6 +85,10 @@ jobs:
           mkdir -p dist
           cp "$APK" dist/Speed-Dreams-Mobile-Redmi-Universal.apk
           file dist/Speed-Dreams-Mobile-Redmi-Universal.apk
+          APK_SIZE="$(stat -c %s dist/Speed-Dreams-Mobile-Redmi-Universal.apk)"
+          echo "Final APK size: $APK_SIZE bytes"
+          # Fail CI if the APK grows back beyond a reliable mobile-download size.
+          test "$APK_SIZE" -lt 160000000
 
       - name: Enforce modern APK signature with apksigner
         run: |
@@ -135,7 +144,7 @@ jobs:
 
           # Validate actual package metadata instead of merely finding a manifest.
           "$BT_DIR/aapt" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fq "package: name='com.speeddreams.mobile' versionCode='7' versionName='0.10.0-phone1'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "package: name='com.speeddreams.mobile' versionCode='8' versionName='0.10.0-phone2'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "sdkVersion:'29'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "targetSdkVersion:'32'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "native-code:" "$RUNNER_TEMP/apk-badging.txt"
@@ -169,7 +178,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
           TITLE="Speed Dreams Mobile — Redmi A1+ (signed universal ARM)"
-          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone1. Includes arm64-v8a and armeabi-v7a native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
+          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone2. Omits non-runtime GIMP .xcf/.xcf.bz2 source art from the bundled data to reduce download size. Includes arm64-v8a and armeabi-v7a native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
             gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true
