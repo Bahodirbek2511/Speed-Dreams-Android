@@ -9,8 +9,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <dlfcn.h>
-#include <execinfo.h>
 #include <signal.h>
+#include <ucontext.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,22 +53,36 @@ struct PhoneAppState {
 
 static void phoneFatalSignalHandler(int signalNumber, siginfo_t* info, void* context)
 {
-    (void)context;
-    void* frames[64];
-    const int count = backtrace(frames, 64);
-    __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
-        "FATAL native signal=%d address=%p pid=%d tid=%ld",
-        signalNumber, info ? info->si_addr : nullptr, getpid(), (long)gettid());
-    char** names = backtrace_symbols(frames, count);
-    if (names) {
-        for (int i = 0; i < count; ++i)
-            __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
-                "native_backtrace[%02d] %s", i, names[i]);
-        free(names);
+    uintptr_t pc = 0;
+    if (context) {
+        auto* userContext = static_cast<ucontext_t*>(context);
+#if defined(__aarch64__)
+        pc = static_cast<uintptr_t>(userContext->uc_mcontext.pc);
+#elif defined(__arm__)
+        pc = static_cast<uintptr_t>(userContext->uc_mcontext.arm_pc);
+#elif defined(__x86_64__)
+        pc = static_cast<uintptr_t>(userContext->uc_mcontext.gregs[REG_RIP]);
+#elif defined(__i386__)
+        pc = static_cast<uintptr_t>(userContext->uc_mcontext.gregs[REG_EIP]);
+#endif
+    }
+    Dl_info symbolInfo{};
+    const bool hasSymbol = pc != 0 &&
+        dladdr(reinterpret_cast<void*>(pc), &symbolInfo) != 0;
+    if (hasSymbol) {
+        __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
+            "FATAL native signal=%d address=%p pc=%p object=%s symbol=%s offset=0x%lx pid=%d tid=%ld",
+            signalNumber, info ? info->si_addr : nullptr, reinterpret_cast<void*>(pc),
+            symbolInfo.dli_fname ? symbolInfo.dli_fname : "?",
+            symbolInfo.dli_sname ? symbolInfo.dli_sname : "?",
+            symbolInfo.dli_saddr ? static_cast<unsigned long>(pc -
+                reinterpret_cast<uintptr_t>(symbolInfo.dli_saddr)) : 0UL,
+            getpid(), (long)gettid());
     } else {
-        for (int i = 0; i < count; ++i)
-            __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
-                "native_backtrace[%02d] %p", i, frames[i]);
+        __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
+            "FATAL native signal=%d address=%p pc=%p pid=%d tid=%ld",
+            signalNumber, info ? info->si_addr : nullptr,
+            reinterpret_cast<void*>(pc), getpid(), (long)gettid());
     }
     signal(signalNumber, SIG_DFL);
     raise(signalNumber);
