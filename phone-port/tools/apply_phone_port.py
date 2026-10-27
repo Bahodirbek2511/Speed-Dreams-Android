@@ -152,12 +152,12 @@ def patch_gradle(path: Path) -> str:
     if "applicationId 'com.speeddreams.mobile'" not in text:
         text = replace_once(text, "applicationId 'com.speeddreamsvr'",
             "applicationId 'com.speeddreams.mobile'", "phone application ID")
-    if "versionCode 7" not in text:
-        text = replace_once(text, "versionCode 6", "versionCode 7",
+    if "versionCode 8" not in text:
+        text = replace_once(text, "versionCode 6", "versionCode 8",
             "phone version code")
-    if "versionName '0.10.0-phone1'" not in text:
+    if "versionName '0.10.0-phone2'" not in text:
         text = replace_once(text, "versionName '0.10.0-beta'",
-            "versionName '0.10.0-phone1'", "phone version name")
+            "versionName '0.10.0-phone2'", "phone version name")
 
     # Firmware images vary; ship both 64-bit and 32-bit ARM native libraries.
     universal_abi = "abiFilters 'arm64-v8a', 'armeabi-v7a'"
