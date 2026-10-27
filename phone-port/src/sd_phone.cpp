@@ -9,6 +9,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <execinfo.h>
+#include <signal.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -48,6 +50,41 @@ struct PhoneAppState {
     bool quitting = false;
     char baseDir[1024] = "/sdcard/SpeedDreamsVR";
 };
+
+static void phoneFatalSignalHandler(int signalNumber, siginfo_t* info, void* context)
+{
+    (void)context;
+    void* frames[64];
+    const int count = backtrace(frames, 64);
+    __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
+        "FATAL native signal=%d address=%p pid=%d tid=%ld",
+        signalNumber, info ? info->si_addr : nullptr, getpid(), (long)gettid());
+    char** names = backtrace_symbols(frames, count);
+    if (names) {
+        for (int i = 0; i < count; ++i)
+            __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
+                "native_backtrace[%02d] %s", i, names[i]);
+        free(names);
+    } else {
+        for (int i = 0; i < count; ++i)
+            __android_log_print(ANDROID_LOG_ERROR, "SpeedDreamsCrash",
+                "native_backtrace[%02d] %p", i, frames[i]);
+    }
+    signal(signalNumber, SIG_DFL);
+    raise(signalNumber);
+}
+
+static void installPhoneCrashHandler()
+{
+    struct sigaction action{};
+    action.sa_sigaction = phoneFatalSignalHandler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = SA_SIGINFO | SA_RESETHAND;
+    sigaction(SIGSEGV, &action, nullptr);
+    sigaction(SIGABRT, &action, nullptr);
+    sigaction(SIGBUS, &action, nullptr);
+    sigaction(SIGILL, &action, nullptr);
+}
 
 static PhoneAppState* gPhone = nullptr;
 static EGLDisplay gDisplay = EGL_NO_DISPLAY;
@@ -263,7 +300,7 @@ extern "C" int SDPhonePresent(void)
 {
     if (!SDPhoneEnsureSurface()) return -1;
     if (eglSwapBuffers(gDisplay, gSurface) != EGL_TRUE) {
-        PLOGW("eglSwapBuffers failed: 0x%x", eglGetError());
+        PLOGW("eglSwapBuffers failed: 0x%x display=%p surface=%p", eglGetError(), (void*)gDisplay, (void*)gSurface);
         detachEglSurface();
         return -1;
     }
@@ -296,18 +333,29 @@ extern "C" void VR_Shutdown(void)
 
 static void* phoneMainThread(void* argument)
 {
+    installPhoneCrashHandler();
     auto* state = static_cast<PhoneAppState*>(argument);
+    PLOGI("BOOT stage=thread-start pid=%d tid=%ld", getpid(), (long)gettid());
     prctl(PR_SET_NAME, "SDPhone_Game", 0, 0, 0);
     VrLogRedirectStdio();
     setenv("SDL_VIDEODRIVER", "dummy", 1);
     setenv("SDL_AUDIODRIVER", "openslES", 1);
     setenv("SDVR_DATA_DIR", state->baseDir, 1);
 
+    PLOGI("BOOT stage=waiting-for-egl-surface");
     if (SDPhoneEnsureSurface()) {
+        PLOGI("BOOT stage=egl-surface-ready size=%dx%d", gSurfaceWidth, gSurfaceHeight);
         initializeGl4es();
-        if (VrPathsInit(state->baseDir) == 0) {
+        PLOGI("BOOT stage=gl4es-initialized");
+        const int pathsStatus = VrPathsInit(state->baseDir);
+        PLOGI("BOOT stage=paths-init result=%d base=%s", pathsStatus, state->baseDir);
+        if (pathsStatus == 0) {
+            PLOGI("BOOT stage=audio-init-begin");
             VrAudioInit();
+            PLOGI("BOOT stage=audio-init-done");
+            PLOGI("BOOT stage=sdl-main-ready-begin");
             SDL_SetMainReady();
+            PLOGI("BOOT stage=sdl-main-ready-done");
             static char arg0[] = "speed-dreams-2";
             static char optDD[] = "-dd";
             static char optLC[] = "-lc";
@@ -318,15 +366,19 @@ static void* phoneMainThread(void* argument)
             snprintf(localDir, sizeof(localDir), "%s", VrLocalDir());
             snprintf(baseDir, sizeof(baseDir), "%s", VrBaseDir());
             char* argv[] = {arg0, optDD, dataDir, optLC, localDir, optLD, dataDir, optBD, baseDir, nullptr};
-            PLOGI("Starting flat-screen Speed Dreams: data=%s", dataDir);
+            PLOGI("BOOT stage=sdmain-enter data=%s local=%s base=%s", dataDir, localDir, baseDir);
             SdMain(9, argv);
+            PLOGI("BOOT stage=sdmain-return");
             VrAudioShutdown();
+            PLOGI("BOOT stage=audio-shutdown-done");
         } else {
             PLOGE("Game data missing at %s/data; include a legal data package in the APK", state->baseDir);
         }
     }
 
+    PLOGI("BOOT stage=thread-cleanup-begin");
     destroyEgl();
+    PLOGI("BOOT stage=thread-cleanup-egl-done");
     pthread_mutex_lock(&state->mutex);
     state->threadFinished = true;
     pthread_cond_broadcast(&state->cond);
