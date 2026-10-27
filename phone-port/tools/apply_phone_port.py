@@ -439,22 +439,26 @@ def patch_guiscreen(path: Path) -> str:
         # Keep the complete upstream if/else structure intact: removing the
         # whole context block left its fullscreen "else" outside the if.
         context_start = block.find("    /* Create OpenGL context */")
-        context_end = block.find("\n    return PScreenSurface;", context_start)
+        context_end = block.find("\\n    // If specified, try best possible settings.", context_start)
         require(context_start >= 0 and context_end > context_start,
-                "Could not isolate the SDL OpenGL context creation block")
+                "Could not isolate the SDL OpenGL context setup")
         original_context = block[context_start:context_end]
-        require("SDL_GL_CreateContext" in original_context,
-                "Could not locate SDL_GL_CreateContext in screen initialization")
-        original_context = original_context.replace(
-            "GLContext = SDL_GL_CreateContext(GfuiWindow);",
-            "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
-            "    // Keep SDL's if/else structure balanced; phone EGL setup replaces this context.\n"
-            "    GLContext = NULL;\n"
-            "#else\n"
-            "    GLContext = SDL_GL_CreateContext(GfuiWindow);\n"
-            "#endif")
-        block = block[:context_start] + original_context + block[context_end:]
-
+        require("SDL_GL_CreateContext" in original_context and "return nullptr;" in original_context,
+                "Could not locate the complete SDL GL context failure check")
+        phone_context = (
+            "    /* Create OpenGL context */\\n"
+            "#ifdef SD_PHONE_UPSTREAM_MAIN\\n"
+            "    // The phone EGL context is already current; never ask SDL dummy video for GL.\\n"
+            "    GLContext = NULL;\\n"
+            "#else\\n"
+            "    if (!(GLContext = SDL_GL_CreateContext(GfuiWindow)))\\n"
+            "    {\\n"
+            "        GfLogError(\\"SDL_GL_CreateContext failed\\");\\n"
+            "        return nullptr;\\n"
+            "    }\\n"
+            "#endif\\n"
+        )
+        block = block[:context_start] + phone_context + block[context_end:]
         # Preserve the upstream if/else braces; only disable the fullscreen call on phones.
         # Match the upstream line by syntax, not exact whitespace.
         fullscreen_else_re = re.compile(
