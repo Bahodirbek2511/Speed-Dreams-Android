@@ -159,14 +159,14 @@ def patch_gradle(path: Path) -> str:
         text = replace_once(text, "versionName '0.10.0-beta'",
             "versionName '0.10.0-phone2'", "phone version name")
 
-    # Firmware images vary; ship both 64-bit and 32-bit ARM native libraries.
-    universal_abi = "abiFilters 'arm64-v8a', 'armeabi-v7a'"
+    # Ship both ARM ABIs for phones and x86_64 for native testing on the Ramus emulator.
+    universal_abi = "abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'"
     if universal_abi not in text:
         text = replace_once(text, "abiFilters 'arm64-v8a'", universal_abi,
-            "universal ARM ABI filters")
+            "universal ARM plus x86_64 ABI filters")
     require(text.count(universal_abi) == 1 and
             "abiFilters 'arm64-v8a'" not in text.replace(universal_abi, "", 1),
-            "Android ABI filters are not configured for both ARM variants")
+            "Android ABI filters are not configured for ARM and x86_64")
 
     old_signing_note = ("// Signed with the debug key: this is a sideloaded build, not a Store\n"
                         "// submission, and a throwaway key would only make upgrades harder.")

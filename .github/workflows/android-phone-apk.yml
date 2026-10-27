@@ -138,6 +138,7 @@ jobs:
           unzip -l "$APK" > "$RUNNER_TEMP/apk-list.txt"
           grep -q "lib/armeabi-v7a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
           grep -q "lib/arm64-v8a/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
+          grep -q "lib/x86_64/libsdvr.so" "$RUNNER_TEMP/apk-list.txt"
           grep -q "assets/gamedata.zip" "$RUNNER_TEMP/apk-list.txt"
           unzip -p "$APK" assets/gamedata.zip > "$RUNNER_TEMP/gamedata.zip"
           unzip -t "$RUNNER_TEMP/gamedata.zip" > "$RUNNER_TEMP/gamedata-zip-test.txt"
@@ -150,6 +151,7 @@ jobs:
           grep -Fq "native-code:" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "'x86_64'" "$RUNNER_TEMP/apk-badging.txt"
 
           # Verify the app for its declared minSdk (29): v2 must be accepted there.
           "$BT_DIR/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner-verify.txt"
@@ -178,7 +180,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
           TITLE="Speed Dreams Mobile — Redmi A1+ (signed universal ARM)"
-          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone2. Omits non-runtime GIMP .xcf/.xcf.bz2 source art from the bundled data to reduce download size. Includes arm64-v8a and armeabi-v7a native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
+          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone2. Omits non-runtime GIMP .xcf/.xcf.bz2 source art from the bundled data to reduce download size. Includes arm64-v8a, armeabi-v7a and x86_64 native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
             gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true

@@ -165,7 +165,7 @@ public class SDVRLib {
         self.assertIn("applicationId 'com.speeddreams.mobile'", gradle)
         self.assertIn("versionCode 8", gradle)
         self.assertIn("versionName '0.10.0-phone2'", gradle)
-        self.assertIn("abiFilters 'arm64-v8a', 'armeabi-v7a'", gradle)
+        self.assertIn("abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'", gradle)
         self.assertIn("enableV1Signing = true", gradle)
         self.assertIn("enableV2Signing = true", gradle)
         manifest = (self.reference / "android/app/src/main/AndroidManifest.xml").read_text()
