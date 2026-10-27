@@ -420,6 +420,22 @@ def patch_guiscreen(path: Path) -> str:
 #endif
 """
         block = block[:open_brace + 1] + prologue + block[open_brace + 1:]
+
+        # SDL_VIDEODRIVER=dummy is required because EGL is managed by the phone
+        # thread. The SDL dummy backend cannot create an OpenGL window, so only
+        # the phone build must create a normal hidden SDL window without the
+        # SDL_WINDOW_OPENGL flag; rendering and buffer swaps stay on phone EGL.
+        window_flags_re = re.compile(
+            r"(?m)^([ \\t]*)SDL_WINDOW_HIDDEN[ \\t]*\\|[ \\t]*SDL_WINDOW_OPENGL\\);[ \\t]*$"
+        )
+        block, window_flags_count = window_flags_re.subn(
+            lambda match: "#ifdef SD_PHONE_UPSTREAM_MAIN\\n"
+            + match.group(1) + "SDL_WINDOW_HIDDEN);\\n#else\\n"
+            + match.group(1) + "SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);\\n#endif",
+            block, count=1)
+        require(window_flags_count == 1,
+                "Could not disable SDL OpenGL window flag for the dummy phone video driver")
+
         # Keep the complete upstream if/else structure intact: removing the
         # whole context block left its fullscreen "else" outside the if.
         context_start = block.find("    /* Create OpenGL context */")
