@@ -426,12 +426,12 @@ def patch_guiscreen(path: Path) -> str:
         # the phone build must create a normal hidden SDL window without the
         # SDL_WINDOW_OPENGL flag; rendering and buffer swaps stay on phone EGL.
         window_flags_re = re.compile(
-            r"(?m)^([ \\t]*)SDL_WINDOW_HIDDEN[ \\t]*\\|[ \\t]*SDL_WINDOW_OPENGL\\);[ \\t]*$"
+            r"(?m)^([ \t]*)SDL_WINDOW_HIDDEN[ \t]*\|[ \t]*SDL_WINDOW_OPENGL\);[ \t]*$"
         )
         block, window_flags_count = window_flags_re.subn(
-            lambda match: "#ifdef SD_PHONE_UPSTREAM_MAIN\\n"
-            + match.group(1) + "SDL_WINDOW_HIDDEN);\\n#else\\n"
-            + match.group(1) + "SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);\\n#endif",
+            lambda match: "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            + match.group(1) + "SDL_WINDOW_HIDDEN);\n#else\n"
+            + match.group(1) + "SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);\n#endif",
             block, count=1)
         require(window_flags_count == 1,
                 "Could not disable SDL OpenGL window flag for the dummy phone video driver")
