@@ -273,7 +273,8 @@ int GfctrlJoyGetCurrentStates(tCtrlJoyInfo *joyInfo) { return 0; }
 
         screen = (self.engine / "src/libs/tgfclient/guiscreen.cpp").read_text()
         self.assertIn("SDPhoneGetSurfaceSize(&phoneWidth, &phoneHeight)", screen)
-        self.assertIn("#ifdef SD_PHONE_UPSTREAM_MAIN\n        SDL_WINDOW_HIDDEN);\n#else\n        SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);\n#endif", screen)
+        self.assertIn("#ifdef SD_PHONE_UPSTREAM_MAIN\n    GfuiWindow = SDL_CreateWindow", screen)
+        self.assertIn(") & ~SDL_WINDOW_OPENGL);", screen)
         self.assertNotIn("} else SDL_SetWindowFullscreen(GfuiWindow, SDL_WINDOW_FULLSCREEN);", screen)
         self.assertIn("else {\n#ifndef SD_PHONE_UPSTREAM_MAIN", screen)
         self.assertIn("GfScrResizable = false;", screen)

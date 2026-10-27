@@ -422,20 +422,92 @@ def patch_guiscreen(path: Path) -> str:
         block = block[:open_brace + 1] + prologue + block[open_brace + 1:]
 
         # SDL_VIDEODRIVER=dummy is required because EGL is managed by the phone
-        # thread. The SDL dummy backend cannot create an OpenGL window, so only
-        # the phone build must create a normal hidden SDL window without the
-        # SDL_WINDOW_OPENGL flag; rendering and buffer swaps stay on phone EGL.
-        window_flags_re = re.compile(
-            r"(?m)^([ \t]*)SDL_WINDOW_HIDDEN[ \t]*\|[ \t]*SDL_WINDOW_OPENGL\);[ \t]*$"
-        )
-        block, window_flags_count = window_flags_re.subn(
-            lambda match: "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
-            + match.group(1) + "SDL_WINDOW_HIDDEN);\n#else\n"
-            + match.group(1) + "SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);\n#endif",
-            block, count=1)
-        require(window_flags_count == 1,
-                "Could not disable SDL OpenGL window flag for the dummy phone video driver")
+        # thread. The SDL dummy backend cannot create an OpenGL window. Mask out
+        # SDL_WINDOW_OPENGL from the last SDL_CreateWindow argument only in the
+        # phone build; this also works when upstream computes flags in a variable.
+        create_match = re.search(r"(?m)^([ \t]*)GfuiWindow\s*=\s*SDL_CreateWindow\s*\(", block)
+        require(create_match is not None,
+                "Could not locate SDL_CreateWindow in the upstream screen initializer")
+        line_start = create_match.start()
+        open_paren = create_match.end() - 1
+        depth = 0
+        quote = None
+        escaped = False
+        close_paren = -1
+        for pos in range(open_paren, len(block)):
+            ch = block[pos]
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == quote:
+                    quote = None
+                continue
+            if ch in ("'", '"'):
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    close_paren = pos
+                    break
+        require(close_paren > open_paren,
+                "Could not match SDL_CreateWindow parentheses")
 
+        args_text = block[open_paren + 1:close_paren]
+        arg_spans = []
+        part_start = 0
+        depth = 0
+        quote = None
+        escaped = False
+        for pos, ch in enumerate(args_text):
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == quote:
+                    quote = None
+                continue
+            if ch in ("'", '"'):
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                arg_spans.append((part_start, pos))
+                part_start = pos + 1
+        arg_spans.append((part_start, len(args_text)))
+        require(len(arg_spans) >= 6,
+                "SDL_CreateWindow does not have the expected six or more arguments")
+
+        last_start, last_end = arg_spans[-1]
+        last_raw = args_text[last_start:last_end]
+        flags_expr = last_raw.strip()
+        require(flags_expr, "SDL_CreateWindow flags argument is empty")
+        leading = re.match(r"\s*", last_raw).group(0)
+        trailing = re.search(r"\s*$", last_raw).group(0)
+        phone_flags = leading + "(" + flags_expr + ") & ~SDL_WINDOW_OPENGL" + trailing
+        phone_args = args_text[:last_start] + phone_flags + args_text[last_end:]
+
+        call_prefix = block[line_start:open_paren + 1]
+        phone_call = call_prefix + phone_args + ")"
+        statement_end = block.find(";", close_paren)
+        require(statement_end >= 0,
+                "Could not find the end of SDL_CreateWindow statement")
+        original_call = block[line_start:statement_end + 1]
+        indent = create_match.group(1)
+        conditional_call = (
+            "#ifdef SD_PHONE_UPSTREAM_MAIN\n"
+            + phone_call + ";\n"
+            "#else\n"
+            + original_call + "\n"
+            "#endif"
+        )
+        block = block[:line_start] + conditional_call + block[statement_end + 1:]
         # Keep the complete upstream if/else structure intact: removing the
         # whole context block left its fullscreen "else" outside the if.
         context_start = block.find("    /* Create OpenGL context */")
