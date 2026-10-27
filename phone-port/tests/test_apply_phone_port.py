@@ -278,6 +278,7 @@ int GfctrlJoyGetCurrentStates(tCtrlJoyInfo *joyInfo) { return 0; }
         self.assertIn("else {\n#ifndef SD_PHONE_UPSTREAM_MAIN", screen)
         self.assertIn("GfScrResizable = false;", screen)
         self.assertIn("GLContext = NULL;", screen)
+        self.assertIn("/* Create OpenGL context */\n#ifdef SD_PHONE_UPSTREAM_MAIN\n    // The phone EGL context is already current; never ask SDL dummy video for GL.\n    GLContext = NULL;\n#else\n    if (!(GLContext = SDL_GL_CreateContext(GfuiWindow)))", screen)
         self.assertIn("#ifndef SD_PHONE_UPSTREAM_MAIN", screen)
 
         gui = (self.engine / "src/libs/tgfclient/gui.cpp").read_text()
