@@ -108,16 +108,31 @@ import java.util.Locale;
 import android.view.SurfaceView;
 public class SDVRActivity {
     private long mNativeHandle;
+    private String mDataDir = "/sdcard/SpeedDreamsVR";
+    private boolean mUnpacking;
     static {
         String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.ROOT);
         try { setenv("OPENXR_HMD", manufacturer, true); } catch (Exception ignored) {}
         System.loadLibrary("openxr_loader");
         System.loadLibrary("sdvr");
     }
-    void create() {
+    protected void onCreate(Bundle icicle) {
+        Log.v(TAG, "SDVRActivity::onCreate()");
+    }
+    private void checkPermissionsAndInitialize() {
+        if (!Environment.isExternalStorageManager()) return;
+        create();
+    }
+    private void unpackGameData() {
+        Log.v(TAG, "unpack data");
+    }
+    private void create() {
         SurfaceView view = new SurfaceView(this);
         setContentView(view);
         view.getHolder().addCallback(this);
+    }
+    private void startNative() {
+        mNativeHandle = SDVRLib.onCreate(this, mDataDir);
     }
     public void shutdown()
     {
@@ -175,6 +190,13 @@ public class SDVRLib {
         activity = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java").read_text()
         self.assertIn("SDVRLib.onTouch(handle", activity)
         self.assertIn("import android.os.Build;", activity)
+        self.assertIn("DIAG stage=loadlibrary-sdvr-ok", activity)
+        self.assertIn("DIAG stage=loadlibrary-sdvr-failed", activity)
+        self.assertIn("DIAG stage=activity-onCreate", activity)
+        self.assertIn("DIAG stage=permission-check", activity)
+        self.assertIn("DIAG stage=unpack-start", activity)
+        self.assertIn("DIAG stage=native-start", activity)
+        self.assertIn("DIAG stage=jni-onCreate-return", activity)
         self.assertNotIn("OPENXR_HMD", activity)
         lib = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRLib.java").read_text()
         self.assertIn("native void onTouch", lib)
