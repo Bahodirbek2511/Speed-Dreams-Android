@@ -119,19 +119,19 @@ public class SDVRActivity {
     protected void onCreate(Bundle icicle) {
         Log.v(TAG, "SDVRActivity::onCreate()");
     }
-    private void checkPermissionsAndInitialize() {
+    private void checkPermissionsAndInitialize()\n    {
         if (!Environment.isExternalStorageManager()) return;
         create();
     }
-    private void unpackGameData() {
+    private void unpackGameData()\n    {
         Log.v(TAG, "unpack data");
     }
-    private void create() {
+    private void create()\n    {
         SurfaceView view = new SurfaceView(this);
         setContentView(view);
         view.getHolder().addCallback(this);
     }
-    private void startNative() {
+    private void startNative()\n    {
         mNativeHandle = SDVRLib.onCreate(this, mDataDir);
     }
     public void shutdown()
