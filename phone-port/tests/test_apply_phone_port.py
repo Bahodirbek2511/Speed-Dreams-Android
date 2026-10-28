@@ -87,6 +87,9 @@ dependencies {
     <uses-feature android:glEsVersion="0x00030001" android:required="true" />
     <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="true" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <queries><provider android:authorities="org.khronos.openxr.runtime_broker" /></queries>
     <application android:label="@string/app_name">
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest" />
@@ -118,6 +121,12 @@ public class SDVRActivity {
     }
     protected void onCreate(Bundle icicle) {
         Log.v(TAG, "SDVRActivity::onCreate()");
+        File ext = Environment.getExternalStorageDirectory();
+        if (ext != null) {
+            mDataDir = new File(ext, "SpeedDreamsVR").getAbsolutePath();
+        }
+
+        checkPermissionsAndInitialize();
     }
     private void checkPermissionsAndInitialize()
     {
@@ -182,8 +191,8 @@ public class SDVRLib {
         self.assertIn("-DSD_PHONE=ON", gradle)
         self.assertNotIn("openxr_loader_for_android", gradle)
         self.assertIn("applicationId 'com.speeddreams.mobile'", gradle)
-        self.assertIn("versionCode 8", gradle)
-        self.assertIn("versionName '0.10.0-phone2'", gradle)
+        self.assertIn("versionCode 9", gradle)
+        self.assertIn("versionName '0.10.1-phone3'", gradle)
         self.assertIn("abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'", gradle)
         self.assertIn("enableV1Signing = true", gradle)
         self.assertIn("enableV2Signing = true", gradle)
@@ -191,6 +200,9 @@ public class SDVRLib {
         self.assertNotIn("android.hardware.vr.headtracking", manifest)
         self.assertNotIn("IMMERSIVE_HMD", manifest)
         self.assertIn('android:glEsVersion="0x00020000"', manifest)
+        self.assertNotIn("MANAGE_EXTERNAL_STORAGE", manifest)
+        self.assertNotIn("READ_EXTERNAL_STORAGE", manifest)
+        self.assertNotIn("WRITE_EXTERNAL_STORAGE", manifest)
         activity = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRActivity.java").read_text()
         self.assertIn("SDVRLib.onTouch(handle", activity)
         self.assertIn("import android.os.Build;", activity)
@@ -201,6 +213,12 @@ public class SDVRLib {
         self.assertIn("DIAG stage=unpack-start", activity)
         self.assertIn("DIAG stage=native-start", activity)
         self.assertIn("DIAG stage=jni-onCreate-return", activity)
+        self.assertIn("DIAG stage=data-dir", activity)
+        self.assertIn("getExternalFilesDir(null)", activity)
+        self.assertIn("appSpecificStorage=true", activity)
+        self.assertNotIn("Environment.isExternalStorageManager()", activity)
+        self.assertNotIn("Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION", activity)
+        self.assertNotIn("startActivityForResult(intent, REQUEST_MANAGE_ALL_FILES)", activity)
         self.assertNotIn("OPENXR_HMD", activity)
         lib = (self.reference / "android/app/src/main/java/com/speeddreamsvr/SDVRLib.java").read_text()
         self.assertIn("native void onTouch", lib)
