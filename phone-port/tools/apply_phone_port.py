@@ -265,6 +265,60 @@ def patch_activity(path: Path) -> str:
     if 'System.loadLibrary("openxr_loader")' in text or "OPENXR_HMD" in text:
         text, count = static_pattern.subn('\n    static {\n        System.loadLibrary("sdvr");\n    }', text, count=1)
         require(count == 1, "Could not replace VR-only static native library loader")
+
+    # Emit explicit Java-side startup markers. The current runtime reports only
+    # process exits on the emulator, so these markers distinguish class loading,
+    # storage permission handling, data unpacking, and entry into JNI.
+    load_block_pattern = re.compile(
+        r"static\s*\{\s*System\.loadLibrary\(\"sdvr\"\);\s*\}")
+    if "DIAG stage=loadlibrary-sdvr" not in text:
+        diagnostic_loader = '''static {
+        try {
+            System.loadLibrary("sdvr");
+            Log.i(TAG, "DIAG stage=loadlibrary-sdvr-ok");
+        } catch (Throwable e) {
+            Log.e(TAG, "DIAG stage=loadlibrary-sdvr-failed", e);
+            throw new ExceptionInInitializerError(e);
+        }
+    }'''
+        text, count = load_block_pattern.subn(diagnostic_loader, text, count=1)
+        require(count == 1, "Could not instrument SDVR native library loading")
+
+    diagnostics = [
+        ('Log.v(TAG, "SDVRActivity::onCreate()");',
+         '        Log.i(TAG, "DIAG stage=activity-onCreate sdk=" + Build.VERSION.SDK_INT + " package=" + getPackageName());',
+         "activity creation"),
+        ("private void checkPermissionsAndInitialize()\\n    {",
+         '        Log.i(TAG, "DIAG stage=permission-check sdk=" + Build.VERSION.SDK_INT + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));',
+         "storage permission check"),
+        ("private void onActivityResult", None, "permission result method"),
+        ("private void unpackGameData()\\n    {",
+         '        Log.i(TAG, "DIAG stage=unpack-start dataDir=" + mDataDir);',
+         "game-data unpack"),
+        ("private void create()\\n    {",
+         '        Log.i(TAG, "DIAG stage=create nativeHandle=" + mNativeHandle + " unpacking=" + mUnpacking + " dataDir=" + mDataDir);',
+         "activity create dispatch"),
+        ("private void startNative()\\n    {",
+         '        Log.i(TAG, "DIAG stage=native-start dataDir=" + mDataDir);',
+         "native startup"),
+    ]
+    for marker, statement, label in diagnostics:
+        if statement is not None and statement not in text and marker in text:
+            text = text.replace(marker, marker + "\\n" + statement, 1)
+
+    permission_result_marker = "        super.onActivityResult(requestCode, resultCode, data);"
+    permission_result_log = '        Log.i(TAG, "DIAG stage=permission-result request=" + requestCode + " result=" + resultCode + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));'
+    if permission_result_log not in text and permission_result_marker in text:
+        text = text.replace(permission_result_marker,
+                            permission_result_marker + "\\n" + permission_result_log, 1)
+
+    native_call = "        mNativeHandle = SDVRLib.onCreate(this, mDataDir);"
+    native_enter = '        Log.i(TAG, "DIAG stage=jni-onCreate-enter dataDir=" + mDataDir);'
+    native_return = '        Log.i(TAG, "DIAG stage=jni-onCreate-return handle=" + mNativeHandle);'
+    if native_enter not in text and native_call in text:
+        text = text.replace(native_call,
+            native_enter + "\\n" + native_call + "\\n" + native_return, 1)
+
     listener = """        view.setOnTouchListener((v, event) -> {
             final long handle = mNativeHandle;
             if (handle == 0L) return true;
