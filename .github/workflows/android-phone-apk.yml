@@ -170,19 +170,28 @@ jobs:
           fi
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
 
-      - name: Runtime smoke test on Android 12 x86_64 emulator
+      - name: Stop build daemons before starting the Android emulator
+        if: always()
+        run: |
+          # Native compilation leaves Gradle/JVM processes resident. Release their
+          # memory before booting the emulator to avoid Android framework services
+          # dying during first boot on the hosted runner.
+          jps -l | awk '/GradleDaemon|KotlinCompileDaemon/ {print $1}' | xargs -r kill -9 || true
+          sync
+
+      - name: Runtime smoke test on Android 11 x86_64 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 32
+          api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          cores: 4
-          ram-size: 4096M
-          heap-size: 512M
+          cores: 2
+          ram-size: 2048M
+          heap-size: 384M
           disk-size: 4G
           emulator-boot-timeout: 600
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -wipe-data
           disable-animations: true
           disable-linux-hw-accel: true
           script: |
