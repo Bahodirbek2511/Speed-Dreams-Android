@@ -145,7 +145,7 @@ jobs:
 
           # Validate actual package metadata instead of merely finding a manifest.
           "$BT_DIR/aapt" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fq "package: name='com.speeddreams.mobile' versionCode='8' versionName='0.10.0-phone2'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "package: name='com.speeddreams.mobile' versionCode='9' versionName='0.10.1-phone3'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "sdkVersion:'29'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "targetSdkVersion:'32'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fq "native-code:" "$RUNNER_TEMP/apk-badging.txt"
@@ -170,6 +170,65 @@ jobs:
           fi
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
 
+      - name: Runtime smoke test on Android 12 x86_64 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 32
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 4G
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          disable-linux-hw-accel: true
+          script: |
+            set -euo pipefail
+            APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
+            mkdir -p dist
+            adb install -r "$APK"
+            adb logcat -c
+            adb shell am force-stop com.speeddreams.mobile || true
+            adb shell am start -n com.speeddreams.mobile/com.speeddreamsvr.SDVRActivity
+            deadline=$((SECONDS + 180))
+            while [ "$SECONDS" -lt "$deadline" ]; do
+              if adb logcat -d -s SpeedDreamsPhone:I | grep -Fq "BOOT stage=sdmain-enter"; then
+                break
+              fi
+              if [ "$SECONDS" -gt 15 ] && ! adb shell pidof com.speeddreams.mobile >/dev/null 2>&1; then
+                echo "Speed Dreams process exited before engine startup." >&2
+                break
+              fi
+              sleep 2
+            done
+            adb logcat -d -v threadtime > dist/android-emulator-logcat.txt
+            adb shell screencap -p /sdcard/sd-phone-runtime.png
+            adb pull /sdcard/sd-phone-runtime.png dist/android-emulator-screen.png
+            grep -Fq "DIAG stage=jni-onCreate-return" dist/android-emulator-logcat.txt
+            grep -Fq "BOOT stage=gl4es-initialized" dist/android-emulator-logcat.txt
+            grep -Fq "BOOT stage=sdmain-enter" dist/android-emulator-logcat.txt
+            if grep -Eiq "FATAL native signal|Fatal signal [0-9]+|SIGSEGV|SIGABRT" dist/android-emulator-logcat.txt; then
+              echo "Native crash detected by Android emulator runtime test." >&2
+              exit 1
+            fi
+            python3 -m pip install --quiet pillow
+            python3 - <<'PY'
+            from PIL import Image
+            image = Image.open("dist/android-emulator-screen.png").convert("RGB")
+            image.thumbnail((120, 270))
+            pixels = list(image.getdata())
+            non_dark = sum(1 for r, g, b in pixels if max(r, g, b) > 24) / max(1, len(pixels))
+            distinct = len(set(pixels))
+            with open("dist/android-emulator-analysis.txt", "w", encoding="utf-8") as f:
+                f.write(f"screen_size={image.size} non_dark_ratio={non_dark:.4f} distinct_colors={distinct}\\n")
+            print(f"Runtime screenshot: non-dark ratio={non_dark:.4f}, distinct colors={distinct}")
+            if non_dark < 0.015 or distinct < 80:
+                raise SystemExit("Screenshot is effectively black; renderer smoke test failed.")
+            PY
+
       - name: Publish APK as a direct Chrome download
         if: success()
         env:
@@ -180,7 +239,7 @@ jobs:
           APK="dist/Speed-Dreams-Mobile-Redmi-Universal.apk"
           SUMS="dist/SHA256SUMS.txt"
           TITLE="Speed Dreams Mobile — Redmi A1+ (signed universal ARM)"
-          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.0-phone2. Omits non-runtime GIMP .xcf/.xcf.bz2 source art from the bundled data to reduce download size. Includes arm64-v8a, armeabi-v7a and x86_64 native libraries, a verified v2 APK signature, and a stable development signing certificate. Built and package-validated in GitHub Actions; actual Redmi A1+ runtime is not yet tested."
+          NOTES="Experimental flat-screen phone APK, package com.speeddreams.mobile, version 0.10.1-phone3. Uses app-specific writable storage instead of requiring MANAGE_EXTERNAL_STORAGE. Includes arm64-v8a, armeabi-v7a and x86_64 native libraries and a verified v2 APK signature. CI includes an Android 12 x86_64 emulator launch/render smoke test; Redmi A1+ ARM32 runtime still requires direct-device confirmation."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$SUMS" --clobber
             gh release delete-asset "$TAG" "Speed-Dreams-Mobile-Redmi-ARMv7.apk" --yes || true
@@ -200,5 +259,8 @@ jobs:
             ${{ runner.temp }}/android-source-bootstrap.log
             ${{ runner.temp }}/sd-port-build/android-source-lock.txt
             ${{ runner.temp }}/sd-port-build/engine-submodules.txt
+            dist/android-emulator-logcat.txt
+            dist/android-emulator-screen.png
+            dist/android-emulator-analysis.txt
           if-no-files-found: warn
           retention-days: 14
