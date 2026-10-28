@@ -152,12 +152,12 @@ def patch_gradle(path: Path) -> str:
     if "applicationId 'com.speeddreams.mobile'" not in text:
         text = replace_once(text, "applicationId 'com.speeddreamsvr'",
             "applicationId 'com.speeddreams.mobile'", "phone application ID")
-    if "versionCode 8" not in text:
-        text = replace_once(text, "versionCode 6", "versionCode 8",
+    if "versionCode 9" not in text:
+        text = replace_once(text, "versionCode 6", "versionCode 9",
             "phone version code")
-    if "versionName '0.10.0-phone2'" not in text:
+    if "versionName '0.10.1-phone3'" not in text:
         text = replace_once(text, "versionName '0.10.0-beta'",
-            "versionName '0.10.0-phone2'", "phone version name")
+            "versionName '0.10.1-phone3'", "phone version name")
 
     # Ship both ARM ABIs for phones and x86_64 for native testing on the Ramus emulator.
     universal_abi = "abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'"
@@ -195,7 +195,10 @@ def patch_manifest(path: Path) -> str:
     ET.register_namespace("tools", "http://schemas.android.com/tools")
     root = ET.parse(path).getroot()
     remove_permissions = {"com.oculus.permission.HAND_TRACKING",
-                          "org.khronos.openxr.permission.OPENXR_SYSTEM"}
+                          "org.khronos.openxr.permission.OPENXR_SYSTEM",
+                          "android.permission.READ_EXTERNAL_STORAGE",
+                          "android.permission.WRITE_EXTERNAL_STORAGE",
+                          "android.permission.MANAGE_EXTERNAL_STORAGE"}
     for child in list(root):
         tag = child.tag.rsplit("}", 1)[-1]
         name = child.attrib.get(ANDROID_NS + "name", "")
@@ -214,6 +217,7 @@ def patch_manifest(path: Path) -> str:
 
     app = root.find("application")
     require(app is not None, "Manifest has no application node")
+    app.attrib.pop(ANDROID_NS + "requestLegacyExternalStorage", None)
     vr_meta = {"com.samsung.android.vr.application.mode", "com.oculus.supportedDevices",
                "pvr.app.type", "com.oculus.vr.focusaware",
                "com.oculus.handtracking.frequency", "com.oculus.handtracking.version"}
@@ -266,6 +270,57 @@ def patch_activity(path: Path) -> str:
         text, count = static_pattern.subn('\n    static {\n        System.loadLibrary("sdvr");\n    }', text, count=1)
         require(count == 1, "Could not replace VR-only static native library loader")
 
+    # The source Activity previously required MANAGE_EXTERNAL_STORAGE and
+    # exited if its Settings grant was missing. Use per-app storage instead.
+    old_storage_block = """        File ext = Environment.getExternalStorageDirectory();
+        if (ext != null) {
+            mDataDir = new File(ext, "SpeedDreamsVR").getAbsolutePath();
+        }
+
+        checkPermissionsAndInitialize();"""
+    new_storage_block = """        File appFiles = getExternalFilesDir(null);
+        if (appFiles == null) appFiles = getFilesDir();
+        mDataDir = new File(appFiles, "SpeedDreamsVR").getAbsolutePath();
+        Log.i(TAG, "DIAG stage=data-dir path=" + mDataDir
+                   + " externalAppDir=" + (getExternalFilesDir(null) != null));
+
+        checkPermissionsAndInitialize();"""
+    if "DIAG stage=data-dir" not in text:
+        text = replace_once(text, old_storage_block, new_storage_block,
+                            "app-specific game data directory")
+
+    permission_method = re.compile(
+        r"(?ms)^    private void checkPermissionsAndInitialize\s*\(\s*\)\s*\{.*?^    \}")
+    if "appSpecificStorage=true" not in text:
+        text, count = permission_method.subn(
+            """    private void checkPermissionsAndInitialize()
+    {
+        Log.i(TAG, "DIAG stage=permission-check appSpecificStorage=true");
+        create();
+    }""", text, count=1)
+        require(count == 1, "Could not remove the broad-storage permission gate")
+
+    result_method = re.compile(
+        r"(?ms)^    @Override\s*\n    protected void onActivityResult\s*\(int requestCode, int resultCode, Intent data\)\s*\{.*?^    \}")
+    text, _ = result_method.subn(
+        """    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data)
+    {
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.i(TAG, "DIAG stage=activity-result request=" + requestCode + " result=" + resultCode);
+    }""", text, count=1)
+
+    request_result_method = re.compile(
+        r"(?ms)^    @Override\s*\n    public void onRequestPermissionsResult\s*\(int requestCode, String\[\] permissions, int\[\] grantResults\)\s*\{.*?^    \}")
+    text, _ = request_result_method.subn(
+        """    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
+    {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Log.i(TAG, "DIAG stage=permission-result request=" + requestCode
+                   + " grants=" + grantResults.length);
+    }""", text, count=1)
+
     # Emit explicit Java-side startup markers. The current runtime reports only
     # process exits on the emulator, so these markers distinguish class loading,
     # storage permission handling, data unpacking, and entry into JNI.
@@ -288,9 +343,7 @@ def patch_activity(path: Path) -> str:
         ('Log.v(TAG, "SDVRActivity::onCreate()");',
          '        Log.i(TAG, "DIAG stage=activity-onCreate sdk=" + Build.VERSION.SDK_INT + " package=" + getPackageName());',
          "activity creation"),
-        ("private void checkPermissionsAndInitialize()\n    {",
-         '        Log.i(TAG, "DIAG stage=permission-check sdk=" + Build.VERSION.SDK_INT + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));',
-         "storage permission check"),
+        ("private void checkPermissionsAndInitialize()\n    {", None, "storage permission check"),
         ("private void onActivityResult", None, "permission result method"),
         ("private void unpackGameData()\n    {",
          '        Log.i(TAG, "DIAG stage=unpack-start dataDir=" + mDataDir);',
@@ -305,12 +358,6 @@ def patch_activity(path: Path) -> str:
     for marker, statement, label in diagnostics:
         if statement is not None and statement not in text and marker in text:
             text = text.replace(marker, marker + "\n" + statement, 1)
-
-    permission_result_marker = "        super.onActivityResult(requestCode, resultCode, data);"
-    permission_result_log = '        Log.i(TAG, "DIAG stage=permission-result request=" + requestCode + " result=" + resultCode + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));'
-    if permission_result_log not in text and permission_result_marker in text:
-        text = text.replace(permission_result_marker,
-                            permission_result_marker + "\n" + permission_result_log, 1)
 
     native_call = "        mNativeHandle = SDVRLib.onCreate(this, mDataDir);"
     native_enter = '        Log.i(TAG, "DIAG stage=jni-onCreate-enter dataDir=" + mDataDir);'
