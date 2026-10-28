@@ -288,36 +288,36 @@ def patch_activity(path: Path) -> str:
         ('Log.v(TAG, "SDVRActivity::onCreate()");',
          '        Log.i(TAG, "DIAG stage=activity-onCreate sdk=" + Build.VERSION.SDK_INT + " package=" + getPackageName());',
          "activity creation"),
-        ("private void checkPermissionsAndInitialize()\\n    {",
+        ("private void checkPermissionsAndInitialize()\n    {",
          '        Log.i(TAG, "DIAG stage=permission-check sdk=" + Build.VERSION.SDK_INT + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));',
          "storage permission check"),
         ("private void onActivityResult", None, "permission result method"),
-        ("private void unpackGameData()\\n    {",
+        ("private void unpackGameData()\n    {",
          '        Log.i(TAG, "DIAG stage=unpack-start dataDir=" + mDataDir);',
          "game-data unpack"),
-        ("private void create()\\n    {",
+        ("private void create()\n    {",
          '        Log.i(TAG, "DIAG stage=create nativeHandle=" + mNativeHandle + " unpacking=" + mUnpacking + " dataDir=" + mDataDir);',
          "activity create dispatch"),
-        ("private void startNative()\\n    {",
+        ("private void startNative()\n    {",
          '        Log.i(TAG, "DIAG stage=native-start dataDir=" + mDataDir);',
          "native startup"),
     ]
     for marker, statement, label in diagnostics:
         if statement is not None and statement not in text and marker in text:
-            text = text.replace(marker, marker + "\\n" + statement, 1)
+            text = text.replace(marker, marker + "\n" + statement, 1)
 
     permission_result_marker = "        super.onActivityResult(requestCode, resultCode, data);"
     permission_result_log = '        Log.i(TAG, "DIAG stage=permission-result request=" + requestCode + " result=" + resultCode + " allFiles=" + (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()));'
     if permission_result_log not in text and permission_result_marker in text:
         text = text.replace(permission_result_marker,
-                            permission_result_marker + "\\n" + permission_result_log, 1)
+                            permission_result_marker + "\n" + permission_result_log, 1)
 
     native_call = "        mNativeHandle = SDVRLib.onCreate(this, mDataDir);"
     native_enter = '        Log.i(TAG, "DIAG stage=jni-onCreate-enter dataDir=" + mDataDir);'
     native_return = '        Log.i(TAG, "DIAG stage=jni-onCreate-return handle=" + mNativeHandle);'
     if native_enter not in text and native_call in text:
         text = text.replace(native_call,
-            native_enter + "\\n" + native_call + "\\n" + native_return, 1)
+            native_enter + "\n" + native_call + "\n" + native_return, 1)
 
     listener = """        view.setOnTouchListener((v, event) -> {
             final long handle = mNativeHandle;
